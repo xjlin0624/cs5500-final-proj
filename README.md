@@ -1,6 +1,6 @@
 # CS5500 Final Project: AfterCart
 
-*group 10: Yingchao Cai, Bo Hu, Xuelan Lin, Weiyi Sun*
+*group 1: Yingchao Cai, Bo Hu, Xuelan Lin, Weiyi Sun*
 
 This project builds a “Post-Purchase Uncertainty Reducer” that helps shoppers feel confident after checkout by aggregating orders across retailers, monitoring price/delivery/recurring-spend risks, and providing clear, actionable recommendations (price match, return/rebuy, replacement, or no action).
 
