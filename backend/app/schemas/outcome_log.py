@@ -1,7 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel
-from app.models.enums import ActionTaken
+
+from ..models.enums import ActionTaken
 
 class OutcomeLogCreate(BaseModel):
     alert_id: UUID | None = None

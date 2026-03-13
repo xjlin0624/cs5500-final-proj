@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from uuid import UUID
 from pydantic import BaseModel, computed_field
-from app.models.enums import DeliveryEventType
+
+from ..models.enums import DeliveryEventType
 
 class DeliveryEventCreate(BaseModel):
     order_id: UUID

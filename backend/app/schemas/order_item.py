@@ -1,7 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel
-from app.models.enums import MonitoringStoppedReason
+
+from ..models.enums import MonitoringStoppedReason
 
 class OrderItemCreate(BaseModel):
     product_name: str

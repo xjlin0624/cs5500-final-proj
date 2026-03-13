@@ -1,8 +1,8 @@
-
 from datetime import date, datetime
 from uuid import UUID
 from pydantic import BaseModel
-from app.models.enums import OrderStatus
+
+from ..models.enums import OrderStatus
 
 class OrderCreate(BaseModel):
     retailer: str

@@ -1,7 +1,8 @@
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
-from app.models.enums import MessageTone
+
+from ..models.enums import MessageTone
 
 class UserPreferencesUpdate(BaseModel):
     min_savings_threshold: float | None = None

@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from uuid import UUID
 from pydantic import BaseModel
-from app.models.enums import AlertType, AlertStatus, AlertPriority, RecommendedAction, EffortLevel
+
+from ..models.enums import AlertType, AlertStatus, AlertPriority, RecommendedAction, EffortLevel
 
 class AlertCreate(BaseModel):
     order_id: UUID | None = None

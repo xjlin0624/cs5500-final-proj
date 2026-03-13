@@ -79,3 +79,18 @@ This project builds a “Post-Purchase Uncertainty Reducer” that helps shopper
 - **FR-19 (MUST)** User Outcome Logging
 
 - **FR-20 (MUST)** Savings Dashboard
+
+## Local Scheduler Dev
+
+Copy `.env.example` to `.env`, then start the scheduler stack with:
+
+```bash
+docker compose up --build worker beat postgres redis
+```
+
+Useful Celery entrypoints:
+
+```bash
+celery -A backend.app.workers.celery_app.celery_app worker --loglevel=INFO
+celery -A backend.app.workers.celery_app.celery_app beat --loglevel=INFO
+```

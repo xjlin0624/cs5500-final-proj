@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from uuid import UUID
 from pydantic import BaseModel
-from app.models.enums import SubscriptionStatus, DetectionMethod
+
+from ..models.enums import SubscriptionStatus, DetectionMethod
 
 class SubscriptionCreate(BaseModel):
     retailer: str

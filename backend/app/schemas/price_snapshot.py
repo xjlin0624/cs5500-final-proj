@@ -1,7 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, computed_field
-from app.models.enums import SnapshotSource
+
+from ..models.enums import SnapshotSource
 
 class PriceSnapshotCreate(BaseModel):
     order_item_id: UUID

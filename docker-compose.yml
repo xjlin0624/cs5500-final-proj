@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aftercart}
+      POSTGRES_USER: ${POSTGRES_USER:-aftercart}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aftercart}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aftercart} -d ${POSTGRES_DB:-aftercart}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aftercart:aftercart@postgres:5432/aftercart}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      PRICE_CHECK_BATCH_SIZE: ${PRICE_CHECK_BATCH_SIZE:-100}
+      PRICE_CHECK_INTERVAL_MINUTES: ${PRICE_CHECK_INTERVAL_MINUTES:-15}
+      SUBSCRIPTION_REFRESH_INTERVAL_MINUTES: ${SUBSCRIPTION_REFRESH_INTERVAL_MINUTES:-360}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A backend.app.workers.celery_app.celery_app worker --loglevel=${LOG_LEVEL:-INFO}
+
+  beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aftercart:aftercart@postgres:5432/aftercart}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      PRICE_CHECK_BATCH_SIZE: ${PRICE_CHECK_BATCH_SIZE:-100}
+      PRICE_CHECK_INTERVAL_MINUTES: ${PRICE_CHECK_INTERVAL_MINUTES:-15}
+      SUBSCRIPTION_REFRESH_INTERVAL_MINUTES: ${SUBSCRIPTION_REFRESH_INTERVAL_MINUTES:-360}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A backend.app.workers.celery_app.celery_app beat --loglevel=${LOG_LEVEL:-INFO}

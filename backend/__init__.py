@@ -1,0 +1,1 @@
+"""AfterCart backend package."""

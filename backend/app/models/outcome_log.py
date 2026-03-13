@@ -21,4 +21,4 @@ class OutcomeLog(Base):
 
     user       = relationship("User", back_populates="outcome_logs")
     alert      = relationship("Alert", back_populates="outcome_log")
-    order_item = relationship("OrderItem")
+    order_item = relationship("OrderItem", back_populates="outcome_logs")
