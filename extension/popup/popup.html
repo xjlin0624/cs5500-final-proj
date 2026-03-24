@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=400" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <!-- Login view -->
+  <div id="login-view" class="view">
+    <h1>AfterCart</h1>
+    <p class="subtitle">Sign in to track your orders</p>
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Password" />
+    <button id="login-btn" class="btn-primary">Sign In</button>
+    <p id="login-error" class="error hidden"></p>
+  </div>
+
+  <!-- Main dashboard view -->
+  <div id="main-view" class="view hidden">
+    <header>
+      <h1>AfterCart</h1>
+      <button id="logout-btn" class="btn-icon" title="Sign out">⏻</button>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="orders">Orders</button>
+      <button class="tab" data-tab="alerts">Alerts</button>
+      <button class="tab" data-tab="savings">Savings</button>
+    </nav>
+
+    <!-- Orders tab -->
+    <section id="tab-orders" class="tab-content">
+      <div id="orders-list" class="card-list">
+        <p class="empty-state">
+          Visit a retailer's order page to start capturing orders.
+        </p>
+      </div>
+    </section>
+
+    <!-- Alerts tab -->
+    <section id="tab-alerts" class="tab-content hidden">
+      <div id="alerts-list" class="card-list">
+        <p class="empty-state">No alerts yet.</p>
+      </div>
+    </section>
+
+    <!-- Savings tab -->
+    <section id="tab-savings" class="tab-content hidden">
+      <div id="savings-summary">
+        <div class="stat-card">
+          <span class="stat-value" id="total-savings">$0.00</span>
+          <span class="stat-label">Total saved</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
