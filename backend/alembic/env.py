@@ -15,6 +15,7 @@ from app.models.base import Base
 # Import all models so their metadata is registered on Base
 import app.models.user  # noqa: F401
 import app.models.user_preferences  # noqa: F401
+import app.models.order  # noqa: F401
 
 config = context.config
 
