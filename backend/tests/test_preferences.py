@@ -8,7 +8,6 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from backend.app.api.deps import get_current_user, get_db
-from backend.app.core.security import create_access_token
 from backend.app.main import app
 from backend.app.models.enums import MessageTone
 from backend.app.models.user import User

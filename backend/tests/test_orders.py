@@ -1,6 +1,6 @@
 """
 Unit tests for POST /api/orders (FR-3 order ingestion, FR-4 de-duplication,
-return-window deadline calculation).
+return-window deadline calculation) and GET /api/orders list + detail (FR-5).
 Uses the FakeSession pattern — no real database required.
 """
 from datetime import date, datetime, timezone
@@ -434,3 +434,184 @@ def test_ingest_no_window_no_deadline():
 
     assert resp.status_code == 201
     assert resp.json()["return_deadline"] is None
+
+
+# ---------------------------------------------------------------------------
+# Fake session for list / detail (supports multiple orders)
+# ---------------------------------------------------------------------------
+
+class FakeListSession:
+    """Fake session that holds a list of orders for GET endpoint tests."""
+
+    def __init__(self, orders: list[Order]):
+        self._orders = orders
+
+    def get(self, model, pk):
+        if model is Order:
+            return next((o for o in self._orders if str(o.id) == str(pk)), None)
+        return None
+
+    def query(self, model):
+        if model is Order:
+            return _FakeListQuery(self._orders)
+        return _FakeListQuery([])
+
+
+class _FakeListQuery:
+    def __init__(self, orders):
+        self._orders = list(orders)
+        self._filters: list = []
+
+    def filter(self, *conditions):
+        # Evaluate simple column comparisons against each order
+        results = []
+        for order in self._orders:
+            if self._matches(order, conditions):
+                results.append(order)
+        self._orders = results
+        return self
+
+    def _matches(self, order, conditions) -> bool:
+        for cond in conditions:
+            # Unpack BinaryExpression: left is column, right is value
+            try:
+                col_key = cond.left.key
+                val = cond.right.value
+                if getattr(order, col_key) != val:
+                    return False
+            except AttributeError:
+                pass  # skip conditions we can't introspect
+        return True
+
+    def order_by(self, *_args):
+        return self
+
+    def offset(self, n):
+        self._orders = self._orders[n:]
+        return self
+
+    def limit(self, n):
+        self._orders = self._orders[:n]
+        return self
+
+    def all(self):
+        return self._orders
+
+
+def _make_order_with_items(user: User, retailer: str = "amazon", status: OrderStatus = OrderStatus.pending) -> Order:
+    order = _make_order(user)
+    order.retailer = retailer
+    order.order_status = status
+    return order
+
+
+def _make_list_client(session: FakeListSession, user: User) -> TestClient:
+    app.dependency_overrides[get_db] = lambda: (yield session)
+    app.dependency_overrides[get_current_user] = lambda: user
+    return TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/orders — list
+# ---------------------------------------------------------------------------
+
+def test_list_orders_returns_all_user_orders():
+    user = _make_user()
+    orders = [_make_order_with_items(user), _make_order_with_items(user)]
+    orders[1].retailer_order_id = "112-9999999-9999999"
+    client = _make_list_client(FakeListSession(orders), user)
+
+    resp = client.get("/api/orders")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+
+def test_list_orders_empty_returns_empty_list():
+    user = _make_user()
+    client = _make_list_client(FakeListSession([]), user)
+
+    resp = client.get("/api/orders")
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_list_orders_filter_by_retailer():
+    user = _make_user()
+    amazon = _make_order_with_items(user, retailer="amazon")
+    target = _make_order_with_items(user, retailer="target")
+    target.retailer_order_id = "T-999"
+    client = _make_list_client(FakeListSession([amazon, target]), user)
+
+    resp = client.get("/api/orders?retailer=amazon")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["retailer"] == "amazon"
+
+
+def test_list_orders_filter_by_status():
+    user = _make_user()
+    pending = _make_order_with_items(user, status=OrderStatus.pending)
+    delivered = _make_order_with_items(user, status=OrderStatus.delivered)
+    delivered.retailer_order_id = "112-0000001-0000001"
+    client = _make_list_client(FakeListSession([pending, delivered]), user)
+
+    resp = client.get("/api/orders?status=delivered")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["order_status"] == "delivered"
+
+
+def test_list_orders_pagination():
+    user = _make_user()
+    orders = []
+    for i in range(5):
+        o = _make_order_with_items(user)
+        o.retailer_order_id = f"112-{i:07d}-{i:07d}"
+        orders.append(o)
+    client = _make_list_client(FakeListSession(orders), user)
+
+    resp = client.get("/api/orders?limit=2&offset=1")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+
+# ---------------------------------------------------------------------------
+# GET /api/orders/{order_id} — detail
+# ---------------------------------------------------------------------------
+
+def test_get_order_returns_correct_order():
+    user = _make_user()
+    order = _make_order_with_items(user)
+    client = _make_list_client(FakeListSession([order]), user)
+
+    resp = client.get(f"/api/orders/{order.id}")
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == str(order.id)
+
+
+def test_get_order_not_found_returns_404():
+    user = _make_user()
+    client = _make_list_client(FakeListSession([]), user)
+
+    resp = client.get(f"/api/orders/{uuid4()}")
+
+    assert resp.status_code == 404
+
+
+def test_get_order_another_users_order_returns_404():
+    user = _make_user()
+    other_user = _make_user()
+    order = _make_order_with_items(other_user)  # owned by other_user
+    client = _make_list_client(FakeListSession([order]), user)
+
+    resp = client.get(f"/api/orders/{order.id}")
+
+    assert resp.status_code == 404

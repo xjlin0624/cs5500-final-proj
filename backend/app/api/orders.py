@@ -1,8 +1,9 @@
 from datetime import date, datetime, timedelta
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
-from pydantic import BaseModel, field_validator, model_validator
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from .deps import get_current_user, get_db
@@ -165,4 +166,34 @@ def ingest_order(
     db.refresh(order)
 
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
+    return order
+
+
+@router.get("", response_model=list[OrderReadWithItems])
+def list_orders(
+    db: DB,
+    current_user: CurrentUser,
+    retailer: str | None = Query(default=None, description="Filter by retailer slug"),
+    status_filter: str | None = Query(default=None, alias="status", description="Filter by order status"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> list[Order]:
+    """List all orders for the authenticated user, newest first."""
+    q = (
+        db.query(Order)
+        .filter(Order.user_id == current_user.id)
+    )
+    if retailer is not None:
+        q = q.filter(Order.retailer == retailer.strip().lower())
+    if status_filter is not None:
+        q = q.filter(Order.order_status == status_filter)
+    return q.order_by(Order.order_date.desc()).offset(offset).limit(limit).all()
+
+
+@router.get("/{order_id}", response_model=OrderReadWithItems)
+def get_order(order_id: UUID, db: DB, current_user: CurrentUser) -> Order:
+    """Fetch a single order by ID. Returns 404 if not found or owned by another user."""
+    order = db.get(Order, order_id)
+    if order is None or order.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return order
