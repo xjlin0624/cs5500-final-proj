@@ -16,6 +16,8 @@ from app.models.base import Base
 import app.models.user  # noqa: F401
 import app.models.user_preferences  # noqa: F401
 import app.models.order  # noqa: F401
+import app.models.order_item  # noqa: F401
+import app.models.price_snapshot  # noqa: F401
 
 config = context.config
 
