@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       errorEl.classList.add("hidden");
       // Send login request (reuses auth.js logic; inline here for popup context)
-      const res = await fetch("http://localhost:8000/api/v1/auth/login", {
+      const res = await fetch("http://localhost:8000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

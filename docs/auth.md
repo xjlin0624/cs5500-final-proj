@@ -8,10 +8,10 @@
 
 | Method | Path | Auth required | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/signup` | No | Create account, returns `UserRead` (201) |
-| `POST` | `/api/v1/auth/login` | No | Verify credentials, returns token pair |
-| `POST` | `/api/v1/auth/logout` | No* | Invalidate refresh token (204) |
-| `POST` | `/api/v1/auth/refresh` | No* | Rotate token pair |
+| `POST` | `/api/auth/signup` | No | Create account, returns `UserRead` (201) |
+| `POST` | `/api/auth/login` | No | Verify credentials, returns token pair |
+| `POST` | `/api/auth/logout` | No* | Invalidate refresh token (204) |
+| `POST` | `/api/auth/refresh` | No* | Rotate token pair |
 
 *These endpoints accept the refresh token in the request body rather than a header, since they operate on the token itself.
 
@@ -53,7 +53,7 @@ All values are set via environment variables (see `.env.example`):
 
 ```
 backend/app/
-├── main.py                  # FastAPI app entry point; mounts router at /api/v1
+├── main.py                  # FastAPI app entry point; mounts routers at /api
 ├── core/
 │   ├── settings.py          # Pydantic settings; JWT config loaded from env
 │   └── security.py          # hash_password, verify_password, create_access_token,
@@ -61,9 +61,8 @@ backend/app/
 ├── schemas/
 │   └── auth.py              # SignupRequest, LoginRequest, RefreshRequest, TokenResponse
 └── api/
-    ├── deps.py              # get_db() FastAPI dependency (yields SQLAlchemy Session)
-    └── v1/
-        └── auth.py          # The 4 auth endpoints
+    ├── deps.py              # get_db() and get_current_user() FastAPI dependencies
+    └── auth.py              # The 4 auth endpoints
 ```
 
 ---

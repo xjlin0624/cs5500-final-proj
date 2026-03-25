@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from ...api.deps import get_db
-from ...core.security import (
+from .deps import get_db
+from ..core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -14,9 +14,9 @@ from ...core.security import (
     verify_password,
     verify_token,
 )
-from ...models.user import User
-from ...schemas.auth import LoginRequest, RefreshRequest, SignupRequest, TokenResponse
-from ...schemas.user import UserRead
+from ..models.user import User
+from ..schemas.auth import LoginRequest, RefreshRequest, SignupRequest, TokenResponse
+from ..schemas.user import UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

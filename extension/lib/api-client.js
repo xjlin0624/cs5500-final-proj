@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api/v1"; // TODO: make configurable
+const API_BASE = "http://localhost:8000/api"; // TODO: make configurable
 
 async function getAuthToken() {
   const { authToken } = await chrome.storage.local.get("authToken");

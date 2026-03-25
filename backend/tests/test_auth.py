@@ -95,7 +95,7 @@ def test_signup_creates_user_and_returns_201():
     session = FakeAuthSession(user=None)  # no existing user
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/signup", json={
+    resp = client.post("/api/auth/signup", json={
         "email": "new@example.com",
         "password": "strongpass",
     })
@@ -113,7 +113,7 @@ def test_signup_returns_409_when_email_taken():
     session = FakeAuthSession(user=existing)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/signup", json={
+    resp = client.post("/api/auth/signup", json={
         "email": existing.email,
         "password": "whatever",
     })
@@ -125,7 +125,7 @@ def test_signup_with_display_name():
     session = FakeAuthSession(user=None)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/signup", json={
+    resp = client.post("/api/auth/signup", json={
         "email": "named@example.com",
         "password": "pass",
         "display_name": "Alice",
@@ -144,7 +144,7 @@ def test_login_returns_token_pair():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/login", json={
+    resp = client.post("/api/auth/login", json={
         "email": user.email,
         "password": "hunter2",
     })
@@ -161,7 +161,7 @@ def test_login_stores_hashed_refresh_token():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/login", json={"email": user.email, "password": "hunter2"})
+    resp = client.post("/api/auth/login", json={"email": user.email, "password": "hunter2"})
 
     returned_refresh = resp.json()["refresh_token"]
     assert user.refresh_token_hash == hash_token(returned_refresh)
@@ -173,7 +173,7 @@ def test_login_wrong_password_returns_401():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/login", json={
+    resp = client.post("/api/auth/login", json={
         "email": user.email,
         "password": "wrong",
     })
@@ -185,7 +185,7 @@ def test_login_unknown_email_returns_401():
     session = FakeAuthSession(user=None)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/login", json={
+    resp = client.post("/api/auth/login", json={
         "email": "ghost@example.com",
         "password": "anything",
     })
@@ -199,7 +199,7 @@ def test_login_inactive_user_returns_403():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/login", json={
+    resp = client.post("/api/auth/login", json={
         "email": user.email,
         "password": "password123",
     })
@@ -218,7 +218,7 @@ def test_logout_clears_refresh_token_hash():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/logout", json={"refresh_token": refresh_token})
+    resp = client.post("/api/auth/logout", json={"refresh_token": refresh_token})
 
     assert resp.status_code == 204
     assert user.refresh_token_hash is None
@@ -229,7 +229,7 @@ def test_logout_invalid_token_returns_401():
     session = FakeAuthSession(user=None)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/logout", json={"refresh_token": "bad.token.here"})
+    resp = client.post("/api/auth/logout", json={"refresh_token": "bad.token.here"})
 
     assert resp.status_code == 401
 
@@ -241,7 +241,7 @@ def test_logout_with_access_token_returns_401():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/logout", json={"refresh_token": access_token})
+    resp = client.post("/api/auth/logout", json={"refresh_token": access_token})
 
     assert resp.status_code == 401
 
@@ -257,7 +257,7 @@ def test_refresh_returns_new_token_pair():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    resp = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
 
     assert resp.status_code == 200
     data = resp.json()
@@ -273,7 +273,7 @@ def test_refresh_rotates_token():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+    resp = client.post("/api/auth/refresh", json={"refresh_token": old_refresh})
 
     new_refresh = resp.json()["refresh_token"]
     assert new_refresh != old_refresh  # jti claim makes every token unique
@@ -285,7 +285,7 @@ def test_refresh_invalid_token_returns_401():
     session = FakeAuthSession(user=None)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": "garbage"})
+    resp = client.post("/api/auth/refresh", json={"refresh_token": "garbage"})
 
     assert resp.status_code == 401
 
@@ -299,10 +299,10 @@ def test_refresh_reuse_after_rotation_returns_401():
     client = _make_client(session)
 
     # First refresh — succeeds and rotates
-    client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+    client.post("/api/auth/refresh", json={"refresh_token": old_refresh})
 
     # Second call with the same old token — hash no longer matches
-    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
+    resp = client.post("/api/auth/refresh", json={"refresh_token": old_refresh})
     assert resp.status_code == 401
 
 
@@ -313,7 +313,7 @@ def test_refresh_with_access_token_returns_401():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": access_token})
+    resp = client.post("/api/auth/refresh", json={"refresh_token": access_token})
 
     assert resp.status_code == 401
 
@@ -326,6 +326,6 @@ def test_refresh_no_stored_hash_returns_401():
     session = FakeAuthSession(user=user)
     client = _make_client(session)
 
-    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    resp = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
 
     assert resp.status_code == 401
