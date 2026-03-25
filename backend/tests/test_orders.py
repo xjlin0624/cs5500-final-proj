@@ -1,0 +1,282 @@
+"""
+Unit tests for POST /api/orders (order ingestion).
+Uses the FakeSession pattern — no real database required.
+"""
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+
+from backend.app.api.deps import get_current_user, get_db
+from backend.app.main import app
+from backend.app.models.enums import OrderStatus
+from backend.app.models.order import Order
+from backend.app.models.order_item import OrderItem
+from backend.app.models.user import User
+
+
+# ---------------------------------------------------------------------------
+# Fake session
+# ---------------------------------------------------------------------------
+
+class FakeOrderSession:
+    def __init__(self, existing_order=None):
+        self._order = existing_order
+        self.added: list = []
+        self.deleted: list = []
+        self.committed = False
+        self._flushed = False
+
+    # --- query support ---
+
+    def query(self, model):
+        if model is Order:
+            return _FakeOrderQuery(self._order)
+        if model is OrderItem:
+            return _FakeItemQuery(self)
+        return _FakeOrderQuery(None)
+
+    # --- unit-of-work ---
+
+    def add(self, obj):
+        self.added.append(obj)
+        if isinstance(obj, Order):
+            self._order = obj
+
+    def flush(self):
+        self._flushed = True
+        # Simulate DB assigning a PK on INSERT
+        if isinstance(self._order, Order) and not self._order.id:
+            self._order.id = uuid4()
+
+    def commit(self):
+        self.committed = True
+
+    def refresh(self, obj):
+        now = datetime.now(timezone.utc)
+        if isinstance(obj, Order):
+            if not obj.id:
+                obj.id = uuid4()
+            if obj.created_at is None:
+                obj.created_at = now
+            if obj.updated_at is None:
+                obj.updated_at = now
+            # Attach items and populate their DB-assigned defaults
+            items = [a for a in self.added if isinstance(a, OrderItem)]
+            for item in items:
+                if not item.id:
+                    item.id = uuid4()
+                if item.is_monitoring_active is None:
+                    item.is_monitoring_active = True
+                if item.quantity is None:
+                    item.quantity = 1
+                if item.created_at is None:
+                    item.created_at = now
+                if item.updated_at is None:
+                    item.updated_at = now
+            obj.items = items
+
+
+class _FakeOrderQuery:
+    def __init__(self, result):
+        self._result = result
+
+    def filter(self, *_args):
+        return self
+
+    def first(self):
+        return self._result
+
+    def delete(self):
+        pass
+
+
+class _FakeItemQuery:
+    """Query stub for OrderItem — only needs .filter().delete()."""
+    def __init__(self, session):
+        self._session = session
+
+    def filter(self, *_args):
+        return self
+
+    def delete(self):
+        self._session.deleted.append("items")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_user() -> User:
+    return User(
+        id=uuid4(),
+        email="user@example.com",
+        password_hash="hash",
+        is_active=True,
+        is_verified=False,
+    )
+
+
+def _make_order(user: User) -> Order:
+    order = Order(
+        id=uuid4(),
+        user_id=user.id,
+        retailer="amazon",
+        retailer_order_id="112-1234567-1234567",
+        order_status=OrderStatus.pending,
+        order_date=datetime(2024, 1, 15, tzinfo=timezone.utc),
+        subtotal=99.99,
+        currency="USD",
+        price_match_eligible=False,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    order.items = []
+    return order
+
+
+def _make_client(session: FakeOrderSession, user: User) -> TestClient:
+    app.dependency_overrides[get_db] = lambda: (yield session)
+    app.dependency_overrides[get_current_user] = lambda: user
+    return TestClient(app)
+
+
+_MINIMAL_BODY = {
+    "retailer": "amazon",
+    "retailer_order_id": "112-1234567-1234567",
+    "order_status": "pending",
+    "order_date": "2024-01-15T00:00:00Z",
+    "subtotal": 99.99,
+}
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+def test_create_new_order_returns_201():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    resp = client.post("/api/orders", json=_MINIMAL_BODY)
+
+    assert resp.status_code == 201
+    assert session.committed is True
+
+
+def test_create_order_stores_correct_fields():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    resp = client.post("/api/orders", json=_MINIMAL_BODY)
+
+    data = resp.json()
+    assert data["retailer"] == "amazon"
+    assert data["retailer_order_id"] == "112-1234567-1234567"
+    assert data["order_status"] == "pending"
+    assert data["subtotal"] == 99.99
+    assert data["currency"] == "USD"
+    assert data["user_id"] == str(user.id)
+
+
+def test_create_order_with_items():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    body = {
+        **_MINIMAL_BODY,
+        "items": [
+            {
+                "product_name": "Running Shoes",
+                "product_url": "https://amazon.com/dp/B001",
+                "paid_price": 99.99,
+                "quantity": 1,
+            },
+            {
+                "product_name": "Socks",
+                "product_url": "https://amazon.com/dp/B002",
+                "paid_price": 9.99,
+                "quantity": 3,
+            },
+        ],
+    }
+
+    resp = client.post("/api/orders", json=body)
+
+    assert resp.status_code == 201
+    items_added = [a for a in session.added if isinstance(a, OrderItem)]
+    assert len(items_added) == 2
+    assert items_added[0].product_name == "Running Shoes"
+    assert items_added[1].paid_price == 9.99
+
+
+def test_create_order_item_inherits_user_id():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    body = {
+        **_MINIMAL_BODY,
+        "items": [{"product_name": "Widget", "product_url": "https://amazon.com/dp/X", "paid_price": 5.0}],
+    }
+
+    resp = client.post("/api/orders", json=body)
+
+    assert resp.status_code == 201
+    item = next(a for a in session.added if isinstance(a, OrderItem))
+    assert item.user_id == user.id
+
+
+def test_upsert_updates_existing_order():
+    user = _make_user()
+    existing = _make_order(user)
+    existing.order_status = OrderStatus.pending
+    session = FakeOrderSession(existing_order=existing)
+    client = _make_client(session, user)
+
+    body = {**_MINIMAL_BODY, "order_status": "shipped", "tracking_number": "1Z999AA1"}
+
+    resp = client.post("/api/orders", json=body)
+
+    assert resp.status_code == 201
+    assert existing.order_status == OrderStatus.shipped
+    assert existing.tracking_number == "1Z999AA1"
+    assert session.committed is True
+
+
+def test_upsert_replaces_items():
+    user = _make_user()
+    existing = _make_order(user)
+    session = FakeOrderSession(existing_order=existing)
+    client = _make_client(session, user)
+
+    body = {
+        **_MINIMAL_BODY,
+        "items": [
+            {"product_name": "New Item", "product_url": "https://amazon.com/dp/N", "paid_price": 20.0},
+        ],
+    }
+
+    resp = client.post("/api/orders", json=body)
+
+    assert resp.status_code == 201
+    # Old items were deleted
+    assert "items" in session.deleted
+    # New item was added
+    new_items = [a for a in session.added if isinstance(a, OrderItem)]
+    assert len(new_items) == 1
+    assert new_items[0].product_name == "New Item"
+
+
+def test_no_items_body_creates_order_with_empty_items():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    resp = client.post("/api/orders", json=_MINIMAL_BODY)
+
+    assert resp.status_code == 201
+    assert resp.json()["items"] == []
