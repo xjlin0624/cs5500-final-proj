@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from backend.app.api.deps import get_current_user, get_db
-from backend.app.api.orders import OrderIngest, compute_return_deadline, find_or_create_order
+from backend.app.api.orders import OrderIngest, compute_return_deadline, enroll_items_for_price_monitoring, find_or_create_order
 from backend.app.main import app
 from backend.app.models.enums import OrderStatus
 from backend.app.models.order import Order
@@ -615,3 +615,106 @@ def test_get_order_another_users_order_returns_404():
     resp = client.get(f"/api/orders/{order.id}")
 
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# enroll_items_for_price_monitoring (pure function)
+# ---------------------------------------------------------------------------
+
+def _make_item(is_monitoring_active=True, product_url="https://amazon.com/dp/X") -> OrderItem:
+    item = OrderItem(
+        id=uuid4(),
+        order_id=uuid4(),
+        user_id=uuid4(),
+        product_name="Widget",
+        product_url=product_url,
+        paid_price=10.0,
+        is_monitoring_active=is_monitoring_active,
+    )
+    return item
+
+
+def test_enroll_dispatches_for_active_items():
+    dispatched = []
+    items = [_make_item(), _make_item()]
+
+    count = enroll_items_for_price_monitoring(items, enqueue_fn=dispatched.append)
+
+    assert count == 2
+    assert len(dispatched) == 2
+
+
+def test_enroll_skips_inactive_items():
+    dispatched = []
+    items = [_make_item(is_monitoring_active=False), _make_item()]
+
+    count = enroll_items_for_price_monitoring(items, enqueue_fn=dispatched.append)
+
+    assert count == 1
+    assert len(dispatched) == 1
+
+
+def test_enroll_skips_items_without_product_url():
+    dispatched = []
+    items = [_make_item(product_url=""), _make_item()]
+
+    count = enroll_items_for_price_monitoring(items, enqueue_fn=dispatched.append)
+
+    assert count == 1
+
+
+def test_enroll_passes_string_id_to_enqueue_fn():
+    dispatched = []
+    item = _make_item()
+
+    enroll_items_for_price_monitoring([item], enqueue_fn=dispatched.append)
+
+    assert dispatched[0] == str(item.id)
+
+
+def test_enroll_swallows_dispatch_errors():
+    def failing_fn(_id):
+        raise RuntimeError("broker down")
+
+    # Should not raise, returns 0 enrolled
+    count = enroll_items_for_price_monitoring([_make_item()], enqueue_fn=failing_fn)
+    assert count == 0
+
+
+def test_enroll_empty_list():
+    dispatched = []
+    count = enroll_items_for_price_monitoring([], enqueue_fn=dispatched.append)
+    assert count == 0
+    assert dispatched == []
+
+
+def test_ingest_enrolls_items_for_monitoring():
+    """End-to-end: items POSTed via ingest endpoint are enrolled for monitoring."""
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    dispatched = []
+
+    app.dependency_overrides[get_db] = lambda: (yield session)
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    # Patch enroll_items_for_price_monitoring to capture calls
+    import backend.app.api.orders as orders_module
+    original = orders_module.enroll_items_for_price_monitoring
+
+    def capturing_enroll(items, enqueue_fn=None):
+        dispatched.extend(items)
+        return len(items)
+
+    orders_module.enroll_items_for_price_monitoring = capturing_enroll
+    try:
+        client = TestClient(app)
+        body = {
+            **_MINIMAL_BODY,
+            "items": [{"product_name": "Shoe", "product_url": "https://amazon.com/dp/A", "paid_price": 50.0}],
+        }
+        resp = client.post("/api/orders", json=body)
+    finally:
+        orders_module.enroll_items_for_price_monitoring = original
+
+    assert resp.status_code == 201
+    assert len(dispatched) == 1

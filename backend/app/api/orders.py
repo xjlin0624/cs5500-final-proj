@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
@@ -14,6 +15,7 @@ from ..schemas.order import OrderCreate, OrderRead
 from ..schemas.order_item import OrderItemCreate, OrderItemRead
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+logger = logging.getLogger(__name__)
 
 DB = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -118,6 +120,44 @@ def find_or_create_order(
 
 
 # ---------------------------------------------------------------------------
+# Price monitoring enrollment
+# ---------------------------------------------------------------------------
+
+def enroll_items_for_price_monitoring(
+    items: list,
+    enqueue_fn=None,
+) -> int:
+    """
+    Dispatch check_order_item_price for each item eligible for monitoring.
+
+    Eligibility mirrors the filter in enqueue_candidate_price_checks:
+      - is_monitoring_active is True
+      - product_url is set (required for scraping)
+
+    enqueue_fn defaults to check_order_item_price.delay (lazy import so the
+    Celery task module is only loaded when actually needed, keeping tests fast).
+    Dispatch errors are logged and swallowed so a broker outage never fails
+    the ingestion request.
+
+    Returns the count of items successfully enqueued.
+    """
+    if enqueue_fn is None:
+        from ..tasks.price_monitoring import check_order_item_price
+        enqueue_fn = check_order_item_price.delay
+
+    count = 0
+    for item in items:
+        if not item.is_monitoring_active or not item.product_url:
+            continue
+        try:
+            enqueue_fn(str(item.id))
+            count += 1
+        except Exception:
+            logger.warning("Failed to enqueue price check for item %s", item.id)
+    return count
+
+
+# ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
 
@@ -164,6 +204,8 @@ def ingest_order(
 
     db.commit()
     db.refresh(order)
+
+    enroll_items_for_price_monitoring(order.items)
 
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
     return order
