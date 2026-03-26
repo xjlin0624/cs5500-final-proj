@@ -19,6 +19,7 @@ celery_app.conf.update(
     imports=(
         "backend.app.tasks.price_monitoring",
         "backend.app.tasks.subscriptions",
+        "backend.app.tasks.delivery_monitoring",
     ),
     beat_schedule={
         "price-check-cycle": {
@@ -28,6 +29,10 @@ celery_app.conf.update(
         "subscription-flag-refresh-cycle": {
             "task": "subscription_flag_refresh_cycle",
             "schedule": timedelta(minutes=settings.subscription_refresh_interval_minutes),
+        },
+        "delivery-check-cycle": {
+            "task": "delivery_check_cycle",
+            "schedule": timedelta(minutes=settings.delivery_check_interval_minutes),
         },
     },
 )
