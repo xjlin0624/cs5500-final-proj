@@ -8,11 +8,14 @@ from pydantic import field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from .deps import get_current_user, get_db
+from ..models.enums import SnapshotSource
 from ..models.order import Order
 from ..models.order_item import OrderItem
+from ..models.price_snapshot import PriceSnapshot
 from ..models.user import User
 from ..schemas.order import OrderCreate, OrderRead
 from ..schemas.order_item import OrderItemCreate, OrderItemRead
+from ..schemas.price_snapshot import PriceSnapshotRead
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 logger = logging.getLogger(__name__)
@@ -158,6 +161,30 @@ def enroll_items_for_price_monitoring(
 
 
 # ---------------------------------------------------------------------------
+# Price snapshot storage
+# ---------------------------------------------------------------------------
+
+def record_extension_capture_snapshot(db: Session, item: OrderItem) -> PriceSnapshot:
+    """
+    Seed the price history for a newly ingested item.
+
+    Records paid_price as the first observed price with source=extension_capture.
+    This gives the time-series a baseline so price_delta is meaningful from day one,
+    even before the first scraper run.
+
+    item.id must already be assigned (call db.flush() before this).
+    """
+    snapshot = PriceSnapshot(
+        order_item_id=item.id,
+        scraped_price=item.paid_price,
+        original_paid_price=item.paid_price,
+        snapshot_source=SnapshotSource.extension_capture,
+    )
+    db.add(snapshot)
+    return snapshot
+
+
+# ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
 
@@ -195,12 +222,21 @@ def ingest_order(
     # Replace items — delete-then-insert keeps the stored set in sync with the
     # extension's latest capture without needing per-item identity tracking.
     db.query(OrderItem).filter(OrderItem.order_id == order.id).delete()
+    new_items: list[OrderItem] = []
     for item_data in body.items:
-        db.add(OrderItem(
+        item = OrderItem(
             order_id=order.id,
             user_id=current_user.id,
             **item_data.model_dump(),
-        ))
+        )
+        db.add(item)
+        new_items.append(item)
+
+    db.flush()  # assign item IDs before creating snapshot FKs
+
+    # Seed the price time-series with the purchase price for each new item.
+    for item in new_items:
+        record_extension_capture_snapshot(db, item)
 
     db.commit()
     db.refresh(order)
@@ -239,3 +275,36 @@ def get_order(order_id: UUID, db: DB, current_user: CurrentUser) -> Order:
     if order is None or order.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return order
+
+
+@router.get(
+    "/{order_id}/items/{item_id}/price-history",
+    response_model=list[PriceSnapshotRead],
+)
+def get_price_history(
+    order_id: UUID,
+    item_id: UUID,
+    db: DB,
+    current_user: CurrentUser,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[PriceSnapshot]:
+    """
+    Return price snapshots for an order item, newest first (FR-6).
+
+    Verifies both order ownership and item membership before returning data.
+    """
+    order = db.get(Order, order_id)
+    if order is None or order.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    item = db.get(OrderItem, item_id)
+    if item is None or item.order_id != order_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order item not found")
+
+    return (
+        db.query(PriceSnapshot)
+        .filter(PriceSnapshot.order_item_id == item_id)
+        .order_by(PriceSnapshot.scraped_at.desc())
+        .limit(limit)
+        .all()
+    )

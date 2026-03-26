@@ -1,6 +1,6 @@
 """
-Unit tests for POST /api/orders (FR-3 order ingestion, FR-4 de-duplication,
-return-window deadline calculation) and GET /api/orders list + detail (FR-5).
+Unit tests for POST /api/orders (FR-3/FR-4), return-window deadline, GET list/detail
+(FR-5), and PriceSnapshot time-series storage (FR-6).
 Uses the FakeSession pattern — no real database required.
 """
 from datetime import date, datetime, timezone
@@ -9,11 +9,18 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from backend.app.api.deps import get_current_user, get_db
-from backend.app.api.orders import OrderIngest, compute_return_deadline, enroll_items_for_price_monitoring, find_or_create_order
+from backend.app.api.orders import (
+    OrderIngest,
+    compute_return_deadline,
+    enroll_items_for_price_monitoring,
+    find_or_create_order,
+    record_extension_capture_snapshot,
+)
 from backend.app.main import app
-from backend.app.models.enums import OrderStatus
+from backend.app.models.enums import OrderStatus, SnapshotSource
 from backend.app.models.order import Order
 from backend.app.models.order_item import OrderItem
+from backend.app.models.price_snapshot import PriceSnapshot
 from backend.app.models.user import User
 
 
@@ -33,6 +40,8 @@ class FakeOrderSession:
             return _FakeOrderQuery(self._order)
         if model is OrderItem:
             return _FakeItemQuery(self)
+        if model is PriceSnapshot:
+            return _FakeSnapshotQuery(self)
         return _FakeOrderQuery(None)
 
     def add(self, obj):
@@ -41,8 +50,12 @@ class FakeOrderSession:
             self._order = obj
 
     def flush(self):
+        # Assign IDs to any newly added objects that don't have one yet
         if isinstance(self._order, Order) and not self._order.id:
             self._order.id = uuid4()
+        for obj in self.added:
+            if isinstance(obj, OrderItem) and not obj.id:
+                obj.id = uuid4()
 
     def commit(self):
         self.committed = True
@@ -94,6 +107,26 @@ class _FakeItemQuery:
 
     def delete(self):
         self._session.deleted.append("items")
+
+
+class _FakeSnapshotQuery:
+    """Returns snapshots added to the session, supporting filter/order_by/limit/all."""
+    def __init__(self, session):
+        self._session = session
+        self._results = [a for a in session.added if isinstance(a, PriceSnapshot)]
+
+    def filter(self, *_args):
+        return self
+
+    def order_by(self, *_args):
+        return self
+
+    def limit(self, n):
+        self._results = self._results[:n]
+        return self
+
+    def all(self):
+        return self._results
 
 
 # ---------------------------------------------------------------------------
@@ -718,3 +751,121 @@ def test_ingest_enrolls_items_for_monitoring():
 
     assert resp.status_code == 201
     assert len(dispatched) == 1
+
+
+# ---------------------------------------------------------------------------
+# record_extension_capture_snapshot (pure function)
+# ---------------------------------------------------------------------------
+
+def _make_item_with_id(**kwargs) -> OrderItem:
+    item = OrderItem(
+        id=uuid4(),
+        order_id=uuid4(),
+        user_id=uuid4(),
+        product_name="Widget",
+        product_url="https://amazon.com/dp/X",
+        paid_price=49.99,
+        is_monitoring_active=True,
+    )
+    for k, v in kwargs.items():
+        setattr(item, k, v)
+    return item
+
+
+def test_record_snapshot_uses_paid_price():
+    item = _make_item_with_id(paid_price=79.99)
+    db = FakeOrderSession()
+
+    snap = record_extension_capture_snapshot(db, item)
+
+    assert snap.scraped_price == 79.99
+    assert snap.original_paid_price == 79.99
+
+
+def test_record_snapshot_source_is_extension_capture():
+    item = _make_item_with_id()
+    db = FakeOrderSession()
+
+    snap = record_extension_capture_snapshot(db, item)
+
+    assert snap.snapshot_source == SnapshotSource.extension_capture
+
+
+def test_record_snapshot_links_to_item():
+    item = _make_item_with_id()
+    db = FakeOrderSession()
+
+    snap = record_extension_capture_snapshot(db, item)
+
+    assert snap.order_item_id == item.id
+
+
+def test_record_snapshot_added_to_session():
+    item = _make_item_with_id()
+    db = FakeOrderSession()
+
+    record_extension_capture_snapshot(db, item)
+
+    assert any(isinstance(a, PriceSnapshot) for a in db.added)
+
+
+def test_record_snapshot_price_delta_is_zero_at_capture():
+    """Delta should be zero at ingestion time — price hasn't changed yet."""
+    item = _make_item_with_id(paid_price=100.0)
+    db = FakeOrderSession()
+
+    snap = record_extension_capture_snapshot(db, item)
+
+    assert snap.price_delta == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Snapshot seeded on ingest via HTTP
+# ---------------------------------------------------------------------------
+
+def test_ingest_seeds_snapshot_for_each_item():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    body = {
+        **_MINIMAL_BODY,
+        "items": [
+            {"product_name": "Shoe", "product_url": "https://amazon.com/dp/A", "paid_price": 50.0},
+            {"product_name": "Sock", "product_url": "https://amazon.com/dp/B", "paid_price": 10.0},
+        ],
+    }
+
+    resp = client.post("/api/orders", json=body)
+
+    assert resp.status_code == 201
+    snapshots = [a for a in session.added if isinstance(a, PriceSnapshot)]
+    assert len(snapshots) == 2
+
+
+def test_ingest_snapshot_paid_prices_match_items():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    body = {
+        **_MINIMAL_BODY,
+        "items": [{"product_name": "Item", "product_url": "https://amazon.com/dp/X", "paid_price": 123.45}],
+    }
+
+    client.post("/api/orders", json=body)
+
+    snap = next(a for a in session.added if isinstance(a, PriceSnapshot))
+    assert snap.scraped_price == 123.45
+    assert snap.original_paid_price == 123.45
+
+
+def test_ingest_no_items_no_snapshots():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    client.post("/api/orders", json=_MINIMAL_BODY)
+
+    snapshots = [a for a in session.added if isinstance(a, PriceSnapshot)]
+    assert len(snapshots) == 0
