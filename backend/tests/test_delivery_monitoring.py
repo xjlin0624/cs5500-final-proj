@@ -151,6 +151,14 @@ def test_detect_eta_slippage_cancelled_order_returns_none():
     assert event is None
 
 
+def test_detect_eta_slippage_returned_order_returns_none():
+    order = _order(status=OrderStatus.returned, estimated_delivery=date(2026, 3, 28))
+
+    event = detect_eta_slippage(order, last_eta=date(2026, 3, 25))
+
+    assert event is None
+
+
 # ---------------------------------------------------------------------------
 # detect_stalled_tracking
 # ---------------------------------------------------------------------------
@@ -277,6 +285,21 @@ def test_build_delivery_anomaly_alert_evidence_fields():
     assert alert.evidence["is_anomaly"] is True
     assert alert.evidence["previous_eta"] == "2026-03-20"
     assert alert.evidence["new_eta"] == "2026-03-25"
+
+
+def test_build_delivery_anomaly_alert_order_item_id_is_none():
+    # Delivery alerts are at the order level; order_item_id must not be set.
+    order = _order()
+    event = _delivery_event(
+        order_id=order.id,
+        event_type=DeliveryEventType.tracking_stalled,
+        is_anomaly=True,
+        notes="No tracking update in 4 day(s) (threshold: 3 day(s)).",
+    )
+
+    alert = build_delivery_anomaly_alert(order, event)
+
+    assert alert.order_item_id is None
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +462,28 @@ def test_process_suppresses_alert_when_notify_disabled():
     assert result["events_created"] == 1
     assert result["alert_created"] is False
     assert not any(isinstance(o, Alert) for o in session.added)
+
+
+def test_process_does_not_call_existing_alert_lookup_when_notify_disabled():
+    # existing_alert_lookup is an expensive DB query; it must be skipped when notify=False.
+    order = _order(estimated_delivery=date(2026, 3, 25))
+    session = FakeDeliverySession(order=order)
+    lookup_call_count = {"n": 0}
+
+    def counting_existing_alert_lookup(_s, _id):
+        lookup_call_count["n"] += 1
+        return None
+
+    process_order_delivery_check(
+        session,
+        order.id,
+        prefs_lookup=lambda _uid: _prefs(notify_delivery_anomaly=False),
+        last_eta_lookup=lambda _s, _id: date(2026, 3, 20),
+        last_event_lookup=lambda _s, _id: (None, None),
+        existing_alert_lookup=counting_existing_alert_lookup,
+    )
+
+    assert lookup_call_count["n"] == 0
 
 
 def test_process_both_eta_and_stall_detected():

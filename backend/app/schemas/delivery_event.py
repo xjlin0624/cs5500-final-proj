@@ -4,15 +4,6 @@ from pydantic import BaseModel, computed_field
 
 from ..models.enums import DeliveryEventType
 
-class DeliveryEventCreate(BaseModel):
-    order_id: UUID
-    event_type: DeliveryEventType
-    previous_eta: date | None = None
-    new_eta: date | None = None
-    carrier_status_raw: str | None = None
-    is_anomaly: bool = False
-    notes: str | None = None
-
 class DeliveryEventRead(BaseModel):
     id: UUID
     order_id: UUID

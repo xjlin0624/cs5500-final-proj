@@ -67,7 +67,6 @@ class DeliveryEventType(str, enum.Enum):
     eta_updated = "eta_updated"
     status_changed = "status_changed"
     tracking_stalled = "tracking_stalled"
-    anomaly_detected = "anomaly_detected"
     delivered = "delivered"
 
 
