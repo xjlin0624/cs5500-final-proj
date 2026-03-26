@@ -4,6 +4,38 @@ from pydantic import BaseModel
 
 from ..models.enums import AlertType, AlertStatus, AlertPriority, RecommendedAction, EffortLevel
 
+
+class RecommendationFactor(BaseModel):
+    """A single decision factor that influenced the recommendation."""
+    factor: str       # machine-readable key, e.g. "price_match_eligible"
+    label: str        # human-readable label
+    result: bool      # True if this factor was satisfied
+    explanation: str  # why this factor matters / what it means in context
+
+
+class ActionStep(BaseModel):
+    """One numbered step in the recommended action plan."""
+    step: int
+    instruction: str
+
+
+class ExplainedRecommendation(BaseModel):
+    """
+    Structured, explainable payload describing why an action was recommended
+    and how the user can act on it.
+    """
+    alert_id: UUID
+    recommended_action: RecommendedAction
+    estimated_savings: float
+    estimated_effort: EffortLevel
+    effort_steps_estimate: int
+    rationale: str
+    decision_factors: list[RecommendationFactor]
+    action_steps: list[ActionStep]
+    days_remaining_return: int | None
+    action_deadline: date | None
+    evidence: dict
+
 class AlertCreate(BaseModel):
     order_id: UUID | None = None
     order_item_id: UUID | None = None

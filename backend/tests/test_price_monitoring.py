@@ -8,6 +8,7 @@ from backend.app.models import (
 )
 from backend.app.scrapers import PriceCheckResult
 from backend.app.tasks.price_monitoring import (
+    build_explained_recommendation,
     build_price_drop_alert,
     compute_recommended_action,
     enqueue_candidate_price_checks,
@@ -426,3 +427,146 @@ def test_process_order_item_price_check_creates_alert_when_no_duplicate():
     assert result["alert_skipped_duplicate"] is False
     assert len(session.added) == 2
     assert isinstance(session.added[1], Alert)
+
+
+# ---------------------------------------------------------------------------
+# build_explained_recommendation
+# ---------------------------------------------------------------------------
+
+def _make_alert_for_explanation(
+    *,
+    action=RecommendedAction.price_match,
+    savings=30.0,
+    effort=EffortLevel.low,
+    effort_steps=3,
+    rationale="Current price $70.00 is $30.00 below your purchase price of $100.00.",
+    days_remaining=None,
+    action_deadline=None,
+    evidence=None,
+):
+    return Alert(
+        id=uuid4(),
+        user_id=uuid4(),
+        order_id=uuid4(),
+        order_item_id=uuid4(),
+        alert_type=AlertType.price_drop,
+        status=AlertStatus.new,
+        priority=AlertPriority.high,
+        title="Price drop on Widget",
+        body="Widget dropped.",
+        recommended_action=action,
+        estimated_savings=savings,
+        estimated_effort=effort,
+        effort_steps_estimate=effort_steps,
+        recommendation_rationale=rationale,
+        days_remaining_return=days_remaining,
+        action_deadline=action_deadline,
+        evidence=evidence or {"price_at_purchase": 100.0, "price_now": 70.0},
+    )
+
+
+def test_build_explained_recommendation_price_match_factors():
+    alert = _make_alert_for_explanation(action=RecommendedAction.price_match)
+    result = build_explained_recommendation(alert)
+
+    assert result.alert_id == alert.id
+    assert result.recommended_action == RecommendedAction.price_match
+    assert result.estimated_savings == 30.0
+    assert result.estimated_effort == EffortLevel.low
+    assert result.effort_steps_estimate == 3
+    # Decision factors
+    pm_factor = next(f for f in result.decision_factors if f.factor == "price_match_eligible")
+    rw_factor = next(f for f in result.decision_factors if f.factor == "return_window_open")
+    assert pm_factor.result is True
+    assert rw_factor.result is False
+
+
+def test_build_explained_recommendation_price_match_steps():
+    alert = _make_alert_for_explanation(action=RecommendedAction.price_match)
+    result = build_explained_recommendation(alert)
+
+    assert len(result.action_steps) == 3
+    assert result.action_steps[0].step == 1
+    assert result.action_steps[2].step == 3
+
+
+def test_build_explained_recommendation_return_and_rebuy_factors():
+    future = date.today() + timedelta(days=10)
+    alert = _make_alert_for_explanation(
+        action=RecommendedAction.return_and_rebuy,
+        effort=EffortLevel.medium,
+        effort_steps=7,
+        days_remaining=10,
+        action_deadline=future,
+    )
+    result = build_explained_recommendation(alert)
+
+    pm_factor = next(f for f in result.decision_factors if f.factor == "price_match_eligible")
+    rw_factor = next(f for f in result.decision_factors if f.factor == "return_window_open")
+    assert pm_factor.result is False
+    assert rw_factor.result is True
+    assert "10 day(s)" in rw_factor.explanation
+    assert result.days_remaining_return == 10
+    assert result.action_deadline == future
+
+
+def test_build_explained_recommendation_return_and_rebuy_steps():
+    alert = _make_alert_for_explanation(
+        action=RecommendedAction.return_and_rebuy,
+        effort=EffortLevel.medium,
+        effort_steps=7,
+        days_remaining=5,
+    )
+    result = build_explained_recommendation(alert)
+
+    assert len(result.action_steps) == 7
+    assert result.action_steps[0].step == 1
+    assert result.action_steps[6].step == 7
+
+
+def test_build_explained_recommendation_no_action_factors():
+    alert = _make_alert_for_explanation(
+        action=RecommendedAction.no_action,
+        effort=EffortLevel.low,
+        effort_steps=0,
+    )
+    result = build_explained_recommendation(alert)
+
+    pm_factor = next(f for f in result.decision_factors if f.factor == "price_match_eligible")
+    rw_factor = next(f for f in result.decision_factors if f.factor == "return_window_open")
+    assert pm_factor.result is False
+    assert rw_factor.result is False
+    assert result.action_steps == []
+
+
+def test_build_explained_recommendation_preserves_evidence():
+    evidence = {"price_at_purchase": 100.0, "price_now": 70.0, "product_url": "https://example.com"}
+    alert = _make_alert_for_explanation(evidence=evidence)
+    result = build_explained_recommendation(alert)
+
+    assert result.evidence == evidence
+
+
+def test_build_explained_recommendation_rationale_forwarded():
+    rationale = "Current price $70.00 is $30.00 below your purchase price of $100.00."
+    alert = _make_alert_for_explanation(rationale=rationale)
+    result = build_explained_recommendation(alert)
+
+    assert result.rationale == rationale
+
+
+def test_build_explained_recommendation_return_and_rebuy_explanation_omits_days_when_none():
+    # Edge case: return_and_rebuy chosen but days_remaining_return is None (e.g. data integrity issue).
+    # Should still say the window is open, not "closed or not applicable".
+    alert = _make_alert_for_explanation(
+        action=RecommendedAction.return_and_rebuy,
+        effort=EffortLevel.medium,
+        effort_steps=7,
+        days_remaining=None,
+    )
+    result = build_explained_recommendation(alert)
+
+    rw_factor = next(f for f in result.decision_factors if f.factor == "return_window_open")
+    assert rw_factor.result is True
+    assert "still open" in rw_factor.explanation
+    assert "closed" not in rw_factor.explanation

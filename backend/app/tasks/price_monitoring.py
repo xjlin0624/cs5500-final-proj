@@ -15,9 +15,29 @@ from ..models import (
     UserPreferences,
 )
 from ..scrapers import PriceCheckResult, get_price_adapter
+from ..schemas.alert import ActionStep, ExplainedRecommendation, RecommendationFactor
 
 
 logger = logging.getLogger(__name__)
+
+
+_ACTION_STEPS: dict[RecommendedAction, list[str]] = {
+    RecommendedAction.price_match: [
+        "Visit the retailer's website and locate their price match request form or customer service portal.",
+        "Have your order number and the current lower price ready.",
+        "Submit the price match request referencing your purchase.",
+    ],
+    RecommendedAction.return_and_rebuy: [
+        "Log in to your account on the retailer's website.",
+        "Navigate to your order history and select this order.",
+        "Initiate a return and select 'found a lower price' as the reason.",
+        "Ship the item back using the return label provided.",
+        "Wait for the retailer to process the return and issue a refund.",
+        "Place a new order for the same item at the current lower price.",
+        "Track the new order to confirm delivery.",
+    ],
+    RecommendedAction.no_action: [],
+}
 
 
 def enqueue_candidate_price_checks(
@@ -64,10 +84,13 @@ def compute_recommended_action(
     Returns (action, effort_level, effort_steps_estimate).
     """
     if order and order.price_match_eligible:
-        return RecommendedAction.price_match, EffortLevel.low, 3
+        action = RecommendedAction.price_match
+        return action, EffortLevel.low, len(_ACTION_STEPS[action])
     if order and order.return_deadline and order.return_deadline >= today:
-        return RecommendedAction.return_and_rebuy, EffortLevel.medium, 7
-    return RecommendedAction.no_action, EffortLevel.low, 0
+        action = RecommendedAction.return_and_rebuy
+        return action, EffortLevel.medium, len(_ACTION_STEPS[action])
+    action = RecommendedAction.no_action
+    return action, EffortLevel.low, len(_ACTION_STEPS[action])
 
 
 def build_price_drop_alert(
@@ -127,6 +150,68 @@ def build_price_drop_alert(
             "product_url": order_item.product_url,
             "price_snapshot_ids": [str(snapshot.id)],
         },
+    )
+
+
+def _return_window_explanation(return_chosen: bool, days_remaining: int | None) -> str:
+    if not return_chosen:
+        return "The return window is closed or not applicable for this order."
+    days_clause = f" ({days_remaining} day(s) remaining)" if days_remaining is not None else ""
+    return f"Your return window is still open{days_clause}. Returning and rebuying at the lower price is feasible."
+
+
+def build_explained_recommendation(alert: Alert) -> ExplainedRecommendation:
+    """
+    Build a structured, explainable recommendation payload from a stored alert.
+
+    Reconstructs the decision factors from the alert's recommendation fields so
+    callers understand why a particular action was chosen over the alternatives.
+    Decision factor results are inferred from the stored recommended_action:
+      - price_match        → price_match_eligible=True, return_window_open=False (irrelevant)
+      - return_and_rebuy   → price_match_eligible=False, return_window_open=True
+      - no_action          → price_match_eligible=False, return_window_open=False
+    """
+    action = alert.recommended_action or RecommendedAction.no_action
+    price_match_chosen = action == RecommendedAction.price_match
+    return_chosen = action == RecommendedAction.return_and_rebuy
+
+    factors = [
+        RecommendationFactor(
+            factor="price_match_eligible",
+            label="Retailer supports price matching",
+            result=price_match_chosen,
+            explanation=(
+                "The retailer offers post-purchase price matching. "
+                "This is the lowest-effort path to claim the savings."
+                if price_match_chosen
+                else "The retailer does not support post-purchase price matching for this order."
+            ),
+        ),
+        RecommendationFactor(
+            factor="return_window_open",
+            label="Return window is still open",
+            result=return_chosen,
+            explanation=_return_window_explanation(return_chosen, alert.days_remaining_return),
+        ),
+    ]
+
+    steps = [
+        ActionStep(step=i + 1, instruction=instruction)
+        for i, instruction in enumerate(_ACTION_STEPS[action])
+    ]
+
+    return ExplainedRecommendation(
+        alert_id=alert.id,
+        recommended_action=action,
+        estimated_savings=alert.estimated_savings or 0.0,
+        estimated_effort=alert.estimated_effort or EffortLevel.low,
+        effort_steps_estimate=alert.effort_steps_estimate or 0,
+        rationale=alert.recommendation_rationale or "",
+        decision_factors=factors,
+        action_steps=steps,
+        days_remaining_return=alert.days_remaining_return,
+        action_deadline=alert.action_deadline,
+        evidence=alert.evidence or {},
     )
 
 

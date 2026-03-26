@@ -10,7 +10,8 @@ from .deps import get_current_user, get_db
 from ..models.alert import Alert
 from ..models.enums import AlertStatus
 from ..models.user import User
-from ..schemas.alert import AlertRead, AlertUpdate
+from ..schemas.alert import AlertRead, AlertUpdate, ExplainedRecommendation
+from ..tasks.price_monitoring import build_explained_recommendation
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -35,6 +36,31 @@ def list_alerts(
         stmt = stmt.where(Alert.status == alert_status)
     stmt = stmt.order_by(Alert.created_at.desc()).limit(limit)
     return list(db.execute(stmt).scalars().all())
+
+
+@router.get("/{alert_id}/recommendation", response_model=ExplainedRecommendation)
+def get_alert_recommendation(
+    alert_id: UUID,
+    db: DB,
+    current_user: CurrentUser,
+) -> ExplainedRecommendation:
+    """
+    Return a structured, explainable recommendation payload for an alert.
+
+    Includes the decision factors and action steps that explain why the
+    recommendation was made and how the user can act on it.
+    Returns 404 if the alert does not exist or belongs to another user.
+    Returns 422 if the alert has no recommendation (e.g. non-price-drop alerts).
+    """
+    alert = db.get(Alert, alert_id)
+    if alert is None or alert.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    if alert.recommended_action is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="This alert has no recommendation",
+        )
+    return build_explained_recommendation(alert)
 
 
 @router.patch("/{alert_id}", response_model=AlertRead)
