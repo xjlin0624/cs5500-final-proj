@@ -4,14 +4,6 @@ from pydantic import BaseModel, computed_field
 
 from ..models.enums import SnapshotSource
 
-class PriceSnapshotCreate(BaseModel):
-    order_item_id: UUID
-    scraped_price: float
-    original_paid_price: float
-    currency: str = "USD"
-    is_available: bool = True
-    snapshot_source: SnapshotSource
-
 class PriceSnapshotRead(BaseModel):
     id: UUID
     order_item_id: UUID

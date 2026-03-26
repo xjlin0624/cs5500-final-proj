@@ -40,8 +40,6 @@ class FakeOrderSession:
             return _FakeOrderQuery(self._order)
         if model is OrderItem:
             return _FakeItemQuery(self)
-        if model is PriceSnapshot:
-            return _FakeSnapshotQuery(self)
         return _FakeOrderQuery(None)
 
     def add(self, obj):
@@ -107,26 +105,6 @@ class _FakeItemQuery:
 
     def delete(self):
         self._session.deleted.append("items")
-
-
-class _FakeSnapshotQuery:
-    """Returns snapshots added to the session, supporting filter/order_by/limit/all."""
-    def __init__(self, session):
-        self._session = session
-        self._results = [a for a in session.added if isinstance(a, PriceSnapshot)]
-
-    def filter(self, *_args):
-        return self
-
-    def order_by(self, *_args):
-        return self
-
-    def limit(self, n):
-        self._results = self._results[:n]
-        return self
-
-    def all(self):
-        return self._results
 
 
 # ---------------------------------------------------------------------------

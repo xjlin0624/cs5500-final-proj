@@ -15,7 +15,6 @@ from ..models.price_snapshot import PriceSnapshot
 from ..models.user import User
 from ..schemas.order import OrderCreate, OrderRead
 from ..schemas.order_item import OrderItemCreate, OrderItemRead
-from ..schemas.price_snapshot import PriceSnapshotRead
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 logger = logging.getLogger(__name__)
@@ -276,35 +275,3 @@ def get_order(order_id: UUID, db: DB, current_user: CurrentUser) -> Order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return order
 
-
-@router.get(
-    "/{order_id}/items/{item_id}/price-history",
-    response_model=list[PriceSnapshotRead],
-)
-def get_price_history(
-    order_id: UUID,
-    item_id: UUID,
-    db: DB,
-    current_user: CurrentUser,
-    limit: int = Query(default=100, ge=1, le=500),
-) -> list[PriceSnapshot]:
-    """
-    Return price snapshots for an order item, newest first (FR-6).
-
-    Verifies both order ownership and item membership before returning data.
-    """
-    order = db.get(Order, order_id)
-    if order is None or order.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-
-    item = db.get(OrderItem, item_id)
-    if item is None or item.order_id != order_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order item not found")
-
-    return (
-        db.query(PriceSnapshot)
-        .filter(PriceSnapshot.order_item_id == item_id)
-        .order_by(PriceSnapshot.scraped_at.desc())
-        .limit(limit)
-        .all()
-    )
