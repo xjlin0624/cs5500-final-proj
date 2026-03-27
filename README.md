@@ -2,10 +2,9 @@
 
 *group 1: Yingchao Cai, Bo Hu, Xuelan Lin, Weiyi Sun*
 
-This project builds a “Post-Purchase Uncertainty Reducer” that helps shoppers feel confident after checkout by aggregating orders across retailers, monitoring price/delivery/recurring-spend risks, and providing clear, actionable recommendations (price match, return/rebuy, replacement, or no action).
+This project builds a "Post-Purchase Uncertainty Reducer" that helps shoppers feel confident after checkout by aggregating orders across retailers, monitoring price/delivery/recurring-spend risks, and providing clear, actionable recommendations (price match, return/rebuy, replacement, or no action).
 
-
-## Objectives 
+## Objectives
 
 ### MVP
 
@@ -79,6 +78,51 @@ This project builds a “Post-Purchase Uncertainty Reducer” that helps shopper
 - **FR-19 (MUST)** User Outcome Logging
 
 - **FR-20 (MUST)** Savings Dashboard
+
+---
+
+## Running the Demo
+
+### Prerequisites
+- Docker Desktop running
+- Python 3.12 with dependencies: `pip install -r backend/requirements.txt`
+- Node.js: `cd frontend && npm install`
+
+### Start
+
+```bash
+# 1. Copy env file (first time only)
+cp .env.example .env
+
+# 2. Start postgres + redis
+docker compose up postgres redis -d
+
+# 3. Run migrations (first time only)
+cd backend && DATABASE_URL=postgresql+psycopg://aftercart:aftercart@localhost:5432/aftercart alembic upgrade head && cd ..
+
+# 4. Start API server (keep this terminal open)
+cd backend && DATABASE_URL=postgresql+psycopg://aftercart:aftercart@localhost:5432/aftercart uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 5. In a new terminal — start frontend (keep this terminal open)
+cd frontend && npm run dev
+
+```
+
+Open **http://localhost:5173** in your browser.
+
+To log in via the Chrome extension, load the `extension/` folder in Chrome (developer mode) and use the same credentials.
+
+### Stop
+
+```bash
+# Ctrl+C in the API and frontend terminals, then:
+docker compose down
+
+# To also wipe the database:
+docker compose down -v
+```
+
+---
 
 ## Local Scheduler Dev
 
