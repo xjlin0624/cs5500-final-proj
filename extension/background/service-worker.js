@@ -30,14 +30,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 async function handleOrdersCaptured(payload) {
-  // POST captured orders to backend for de-duplication (FR-4)
-  // and storage in centralized order view (FR-5)
-  return api.post("/orders/capture", payload);
+  // POST each order individually to /orders (backend expects a single order)
+  const results = [];
+  for (const order of payload) {
+    const itemCount = order.items?.length || 1;
+    const perItemPrice = order.total / itemCount;
+
+    const body = {
+      retailer_order_id: order.externalOrderId,
+      subtotal: order.total,
+      order_date: new Date(order.orderDate).toISOString(),
+      order_status: "pending",
+      items: (order.items || []).map((item) => ({
+        product_name: item.name,
+        product_url: `https://www.amazon.com/dp/${item.productId}`,
+        sku: item.productId,
+        image_url: item.imageUrl,
+        paid_price: perItemPrice,
+      })),
+    };
+
+    const res = await api.post("/orders", body);
+    results.push(res);
+  }
+  return results;
 }
 
-async function handlePriceCaptured(payload) {
-  // POST price snapshot to backend for price history (FR-6)
-  return api.post("/prices/snapshot", payload);
+async function handlePriceCaptured(_payload) {
+  // No-op: backend price-snapshot endpoint does not exist yet
+  console.log("[AfterCart] handlePriceCaptured — no backend endpoint, skipping.");
 }
 
 // --- Alarms: periodic checks ---
