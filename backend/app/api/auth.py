@@ -22,7 +22,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 DB = Annotated[Session, Depends(get_db)]
 
-
 @router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def signup(body: SignupRequest, db: DB) -> User:
     if db.query(User).filter(User.email == body.email).first():
