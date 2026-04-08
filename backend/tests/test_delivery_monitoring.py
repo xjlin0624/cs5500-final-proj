@@ -419,12 +419,14 @@ def test_process_creates_stall_event_and_alert():
 
 
 def test_process_no_events_does_not_commit():
-    order = _order(estimated_delivery=date(2026, 3, 28))
+    from datetime import timedelta
+    today = date.today()
+    order = _order(estimated_delivery=today)
     session = FakeDeliverySession(order=order)
-    recent_time = datetime(2026, 3, 26, 10, 0, tzinfo=timezone.utc)
+    recent_time = datetime.now(timezone.utc) - timedelta(days=1)
 
     def last_eta_lookup(_s, _id):
-        return date(2026, 3, 28)  # no change
+        return today  # no change
 
     def last_event_lookup(_s, _id):
         return recent_time, DeliveryEventType.status_changed
