@@ -8,6 +8,7 @@ from google import genai
 from ..core.settings import get_settings
 from ..models.alert import Alert
 from ..models.enums import AlertType, MessageTone
+from ..models.order import Order
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,74 @@ def _build_prompt(alert: Alert, tone: MessageTone) -> str:
         f"The message should be ready to send directly to the retailer's customer support. "
         f"Do not include a subject line. Do not include placeholder brackets."
     )
+
+
+def _build_order_prompt(order: Order, request_type: str, tone: MessageTone) -> str:
+    tone_instruction = _TONE_INSTRUCTIONS[tone]
+
+    item_names = ", ".join(item.product_name for item in order.items) if order.items else "my order"
+
+    if request_type == "price_match":
+        lines = [
+            f"Write a customer support message to request a price match. ",
+            f"Retailer: {order.retailer}. ",
+            f"Items: {item_names}. ",
+        ]
+        # Include per-item price info if available
+        for item in order.items:
+            if item.paid_price and item.current_price and item.current_price < item.paid_price:
+                savings = item.paid_price - item.current_price
+                lines.append(
+                    f"I paid ${item.paid_price:.2f} for {item.product_name} "
+                    f"and it is now ${item.current_price:.2f} (a difference of ${savings:.2f}). "
+                )
+        lines += [
+            f"{tone_instruction} ",
+            f"The message should be ready to send directly to the retailer's customer support. ",
+            f"Do not include a subject line. Do not include placeholder brackets.",
+        ]
+        return "".join(lines)
+
+    if request_type == "return_request":
+        deadline = f" My return deadline is {order.return_deadline}." if order.return_deadline else ""
+        return (
+            f"Write a customer support message to initiate a return. "
+            f"Retailer: {order.retailer}. "
+            f"Items: {item_names}.{deadline} "
+            f"{tone_instruction} "
+            f"The message should be ready to send directly to the retailer's customer support. "
+            f"Do not include a subject line. Do not include placeholder brackets."
+        )
+
+    # Fallback
+    return (
+        f"Write a customer support message regarding my order from {order.retailer} "
+        f"for: {item_names}. "
+        f"{tone_instruction} "
+        f"The message should be ready to send directly to the retailer's customer support. "
+        f"Do not include a subject line. Do not include placeholder brackets."
+    )
+
+
+def generate_message_from_order(order: Order, request_type: str, tone: MessageTone) -> str:
+    """
+    Generate a customer support message from live order + item data.
+    Raises RuntimeError if GEMINI_API_KEY is not configured.
+    Raises RuntimeError if the Gemini API call fails.
+    """
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    prompt = _build_order_prompt(order, request_type, tone)
+
+    try:
+        response = client.models.generate_content(model="gemini-2.0-flash-lite", contents=prompt)
+        return response.text.strip()
+    except Exception as e:
+        logger.error("Gemini API call failed: %s", e)
+        raise RuntimeError(f"Failed to generate message: {e}") from e
 
 
 def generate_support_message(alert: Alert, tone: MessageTone) -> str:
