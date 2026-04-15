@@ -1,8 +1,27 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aftercart}
+      POSTGRES_USER: ${POSTGRES_USER:-aftercart}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aftercart}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aftercart} -d ${POSTGRES_DB:-aftercart}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     ports:
       - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -15,22 +34,59 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       APP_ENV: ${APP_ENV:-development}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aftercart:aftercart@postgres:5432/aftercart}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.0}
+      SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.0}
+      PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+      PLAYWRIGHT_BROWSER: ${PLAYWRIGHT_BROWSER:-chromium}
+      PLAYWRIGHT_TIMEOUT_MS: ${PLAYWRIGHT_TIMEOUT_MS:-15000}
+      PLAYWRIGHT_NAVIGATION_TIMEOUT_MS: ${PLAYWRIGHT_NAVIGATION_TIMEOUT_MS:-20000}
+      PLAYWRIGHT_STORAGE_STATE_DIR: ${PLAYWRIGHT_STORAGE_STATE_DIR:-backend/.playwright/state}
+      SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-AfterCartBot/1.0 (+https://aftercart.app)}
+      SCRAPER_RETRY_ATTEMPTS: ${SCRAPER_RETRY_ATTEMPTS:-3}
+      SCRAPER_BACKOFF_BASE_SECONDS: ${SCRAPER_BACKOFF_BASE_SECONDS:-2}
+      SCRAPER_BACKOFF_MAX_SECONDS: ${SCRAPER_BACKOFF_MAX_SECONDS:-30}
+      SCRAPER_RATE_LIMIT_PER_MINUTE: ${SCRAPER_RATE_LIMIT_PER_MINUTE:-20}
+      SCRAPER_CIRCUIT_FAILURE_THRESHOLD: ${SCRAPER_CIRCUIT_FAILURE_THRESHOLD:-5}
+      SCRAPER_CIRCUIT_COOLDOWN_SECONDS: ${SCRAPER_CIRCUIT_COOLDOWN_SECONDS:-300}
+      LLM_CACHE_TTL_SECONDS: ${LLM_CACHE_TTL_SECONDS:-900}
+      LLM_RATE_LIMIT_PER_MINUTE: ${LLM_RATE_LIMIT_PER_MINUTE:-10}
+      LLM_RATE_LIMIT_WINDOW_SECONDS: ${LLM_RATE_LIMIT_WINDOW_SECONDS:-60}
+      LLM_DEDUPE_TTL_SECONDS: ${LLM_DEDUPE_TTL_SECONDS:-300}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      FCM_ENABLED: ${FCM_ENABLED:-false}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      FCM_DEFAULT_TTL_SECONDS: ${FCM_DEFAULT_TTL_SECONDS:-3600}
+      RENDER_EXTERNAL_URL: ${RENDER_EXTERNAL_URL:-http://localhost:8000}
     ports:
       - "8000:8000"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
-    command: >
-      bash -c "alembic -c backend/alembic.ini upgrade head &&
-               uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+    command:
+      - bash
+      - -lc
+      - alembic -c backend/alembic.ini upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health').read()"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
 
   worker:
     build:
@@ -38,15 +94,45 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       APP_ENV: ${APP_ENV:-development}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aftercart:aftercart@postgres:5432/aftercart}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       PRICE_CHECK_BATCH_SIZE: ${PRICE_CHECK_BATCH_SIZE:-100}
       PRICE_CHECK_INTERVAL_MINUTES: ${PRICE_CHECK_INTERVAL_MINUTES:-15}
+      DELIVERY_CHECK_INTERVAL_MINUTES: ${DELIVERY_CHECK_INTERVAL_MINUTES:-60}
       SUBSCRIPTION_REFRESH_INTERVAL_MINUTES: ${SUBSCRIPTION_REFRESH_INTERVAL_MINUTES:-360}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.0}
+      SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.0}
+      SENTRY_ENABLE_CELERY: ${SENTRY_ENABLE_CELERY:-true}
+      PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+      PLAYWRIGHT_BROWSER: ${PLAYWRIGHT_BROWSER:-chromium}
+      PLAYWRIGHT_TIMEOUT_MS: ${PLAYWRIGHT_TIMEOUT_MS:-15000}
+      PLAYWRIGHT_NAVIGATION_TIMEOUT_MS: ${PLAYWRIGHT_NAVIGATION_TIMEOUT_MS:-20000}
+      PLAYWRIGHT_STORAGE_STATE_DIR: ${PLAYWRIGHT_STORAGE_STATE_DIR:-backend/.playwright/state}
+      SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-AfterCartBot/1.0 (+https://aftercart.app)}
+      SCRAPER_RETRY_ATTEMPTS: ${SCRAPER_RETRY_ATTEMPTS:-3}
+      SCRAPER_BACKOFF_BASE_SECONDS: ${SCRAPER_BACKOFF_BASE_SECONDS:-2}
+      SCRAPER_BACKOFF_MAX_SECONDS: ${SCRAPER_BACKOFF_MAX_SECONDS:-30}
+      SCRAPER_RATE_LIMIT_PER_MINUTE: ${SCRAPER_RATE_LIMIT_PER_MINUTE:-20}
+      SCRAPER_CIRCUIT_FAILURE_THRESHOLD: ${SCRAPER_CIRCUIT_FAILURE_THRESHOLD:-5}
+      SCRAPER_CIRCUIT_COOLDOWN_SECONDS: ${SCRAPER_CIRCUIT_COOLDOWN_SECONDS:-300}
+      LLM_CACHE_TTL_SECONDS: ${LLM_CACHE_TTL_SECONDS:-900}
+      LLM_RATE_LIMIT_PER_MINUTE: ${LLM_RATE_LIMIT_PER_MINUTE:-10}
+      LLM_RATE_LIMIT_WINDOW_SECONDS: ${LLM_RATE_LIMIT_WINDOW_SECONDS:-60}
+      LLM_DEDUPE_TTL_SECONDS: ${LLM_DEDUPE_TTL_SECONDS:-300}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      FCM_ENABLED: ${FCM_ENABLED:-false}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      FCM_DEFAULT_TTL_SECONDS: ${FCM_DEFAULT_TTL_SECONDS:-3600}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     command: celery -A backend.app.workers.celery_app.celery_app worker --loglevel=${LOG_LEVEL:-INFO}
@@ -57,15 +143,45 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       APP_ENV: ${APP_ENV:-development}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://aftercart:aftercart@postgres:5432/aftercart}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       PRICE_CHECK_BATCH_SIZE: ${PRICE_CHECK_BATCH_SIZE:-100}
       PRICE_CHECK_INTERVAL_MINUTES: ${PRICE_CHECK_INTERVAL_MINUTES:-15}
+      DELIVERY_CHECK_INTERVAL_MINUTES: ${DELIVERY_CHECK_INTERVAL_MINUTES:-60}
       SUBSCRIPTION_REFRESH_INTERVAL_MINUTES: ${SUBSCRIPTION_REFRESH_INTERVAL_MINUTES:-360}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.0}
+      SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.0}
+      SENTRY_ENABLE_CELERY: ${SENTRY_ENABLE_CELERY:-true}
+      PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+      PLAYWRIGHT_BROWSER: ${PLAYWRIGHT_BROWSER:-chromium}
+      PLAYWRIGHT_TIMEOUT_MS: ${PLAYWRIGHT_TIMEOUT_MS:-15000}
+      PLAYWRIGHT_NAVIGATION_TIMEOUT_MS: ${PLAYWRIGHT_NAVIGATION_TIMEOUT_MS:-20000}
+      PLAYWRIGHT_STORAGE_STATE_DIR: ${PLAYWRIGHT_STORAGE_STATE_DIR:-backend/.playwright/state}
+      SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-AfterCartBot/1.0 (+https://aftercart.app)}
+      SCRAPER_RETRY_ATTEMPTS: ${SCRAPER_RETRY_ATTEMPTS:-3}
+      SCRAPER_BACKOFF_BASE_SECONDS: ${SCRAPER_BACKOFF_BASE_SECONDS:-2}
+      SCRAPER_BACKOFF_MAX_SECONDS: ${SCRAPER_BACKOFF_MAX_SECONDS:-30}
+      SCRAPER_RATE_LIMIT_PER_MINUTE: ${SCRAPER_RATE_LIMIT_PER_MINUTE:-20}
+      SCRAPER_CIRCUIT_FAILURE_THRESHOLD: ${SCRAPER_CIRCUIT_FAILURE_THRESHOLD:-5}
+      SCRAPER_CIRCUIT_COOLDOWN_SECONDS: ${SCRAPER_CIRCUIT_COOLDOWN_SECONDS:-300}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      FCM_ENABLED: ${FCM_ENABLED:-false}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      FCM_DEFAULT_TTL_SECONDS: ${FCM_DEFAULT_TTL_SECONDS:-3600}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     command: celery -A backend.app.workers.celery_app.celery_app beat --loglevel=${LOG_LEVEL:-INFO}
+
+volumes:
+  postgres-data:
+  redis-data:
