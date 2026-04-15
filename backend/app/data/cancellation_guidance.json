@@ -1,0 +1,32 @@
+[
+  {
+    "retailer": "nike",
+    "cancellation_url": "https://www.nike.com/orders/details",
+    "steps": [
+      "Open your Nike account order details page.",
+      "Locate the order and review whether it is still in a cancellable state.",
+      "Use Nike chat or phone support if the self-service cancellation option is unavailable."
+    ],
+    "notes": "Nike does not always expose direct self-service cancellation after fulfillment begins."
+  },
+  {
+    "retailer": "sephora",
+    "cancellation_url": "https://www.sephora.com/profile/MyAccount/Orders",
+    "steps": [
+      "Open your Sephora order history page.",
+      "Check whether the order shows a cancel option.",
+      "If the order is already processing, contact Sephora support immediately."
+    ],
+    "notes": "Orders often move to processing quickly, so cancellation windows may be short."
+  },
+  {
+    "retailer": "amazon",
+    "cancellation_url": "https://www.amazon.com/gp/your-account/order-history",
+    "steps": [
+      "Open Amazon order history.",
+      "Select the order and choose cancel items if the action is available.",
+      "If cancellation is unavailable, review return and refund options after delivery."
+    ],
+    "notes": "Availability depends on seller, shipment status, and fulfillment method."
+  }
+]
