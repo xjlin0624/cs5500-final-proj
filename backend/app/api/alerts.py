@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from .deps import CurrentUser, DB
 from ..models.alert import Alert
-from ..models.enums import AlertStatus, MessageTone
+from ..models.enums import AlertPriority, AlertStatus, AlertType, MessageTone
 from ..models.user_preferences import UserPreferences
 from ..schemas.alert import AlertRead, AlertUpdate, ExplainedRecommendation, GeneratedMessage
 from ..services.gemini import generate_support_message, static_fallback_for_alert
@@ -20,6 +20,9 @@ def list_alerts(
     db: DB,
     current_user: CurrentUser,
     alert_status: AlertStatus | None = Query(default=None, alias="status"),
+    alert_type: AlertType | None = Query(default=None, alias="type"),
+    priority: AlertPriority | None = Query(default=None),
+    unread: bool | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[Alert]:
     """
@@ -30,6 +33,14 @@ def list_alerts(
     stmt = select(Alert).where(Alert.user_id == current_user.id)
     if alert_status is not None:
         stmt = stmt.where(Alert.status == alert_status)
+    if alert_type is not None:
+        stmt = stmt.where(Alert.alert_type == alert_type)
+    if priority is not None:
+        stmt = stmt.where(Alert.priority == priority)
+    if unread is True:
+        stmt = stmt.where(Alert.status == AlertStatus.new)
+    if unread is False:
+        stmt = stmt.where(Alert.status != AlertStatus.new)
     stmt = stmt.order_by(Alert.created_at.desc()).limit(limit)
     return list(db.execute(stmt).scalars().all())
 
