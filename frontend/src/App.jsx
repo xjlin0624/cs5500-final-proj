@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -8,14 +8,27 @@ import Alerts from "./pages/Alerts";
 import Savings from "./pages/Savings";
 import Subscriptions from "./pages/Subscriptions";
 import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+import { logout } from "./api";
 
 export default function App() {
+  const [authed, setAuthed] = useState(() => !!localStorage.getItem("aftercart_token"));
+
+  function handleLogout() {
+    logout();
+    setAuthed(false);
+  }
+
+  if (!authed) {
+    return <Login onSuccess={() => setAuthed(true)} />;
+  }
+
   return (
     <BrowserRouter>
       <div className="app-shell">
         <Sidebar />
         <div className="main-shell">
-          <Topbar />
+          <Topbar onLogout={handleLogout} />
           <main className="page-shell">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />

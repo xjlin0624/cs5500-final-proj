@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { getSelf } from "../api";
 
 function getPageTitle(pathname) {
   if (pathname === "/dashboard") return "Overview";
@@ -11,9 +12,14 @@ function getPageTitle(pathname) {
   return "Overview";
 }
 
-export default function Topbar() {
+export default function Topbar({ onLogout }) {
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    getSelf().then(setUser).catch(() => {});
+  }, []);
 
   return (
     <header className="topbar">
@@ -30,10 +36,15 @@ export default function Topbar() {
 
         <div className="profile-wrap">
           <div className="profile-text">
-            <div className="profile-name">Alex Johnson</div>
-            <div className="profile-sub">Premium Member</div>
+            <div className="profile-name">{user?.display_name || user?.email || "Account"}</div>
+            <div className="profile-sub">{user?.email || ""}</div>
           </div>
           <div className="profile-avatar">⍟</div>
+          {onLogout && (
+            <button className="plain-link-btn" onClick={onLogout} style={{ marginLeft: "8px" }}>
+              Sign out
+            </button>
+          )}
         </div>
       </div>
     </header>

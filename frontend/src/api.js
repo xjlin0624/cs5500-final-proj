@@ -168,3 +168,10 @@ export async function unregisterPushToken(token) {
   });
   return handleResponse(res);
 }
+
+export async function getSelf() {
+  const res = await fetch(createApiUrl("users/me"), {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse(res);
+}

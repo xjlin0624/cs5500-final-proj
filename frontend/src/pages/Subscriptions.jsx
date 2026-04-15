@@ -4,6 +4,9 @@ import { subscriptionPlans, billingHistory } from "../mockData";
 export default function Subscriptions() {
   return (
     <div className="page-content">
+      <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "8px" }}>
+        Demo data — subscription management is not yet connected to the backend.
+      </p>
       <div className="plans-grid">
         <div className="plan-card">
           <div className="plan-header">

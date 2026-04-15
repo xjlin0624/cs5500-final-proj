@@ -6,6 +6,9 @@ import BarSavingsChart from "../components/BarSavingsChart";
 export default function Savings() {
   return (
     <div className="page-content">
+      <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "8px" }}>
+        Demo data — real savings will appear once you take actions on alerts.
+      </p>
       <div className="three-col-grid">
         {savingsStats.map((item) => (
           <StatCard key={item.title} {...item} />

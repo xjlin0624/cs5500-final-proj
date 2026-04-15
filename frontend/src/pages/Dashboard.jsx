@@ -134,7 +134,12 @@ export default function Dashboard() {
       </section>
 
       <section className="dashboard-main-grid">
-        <PriceLineChart data={priceHistory} />
+        <div style={{ position: "relative" }}>
+          <PriceLineChart data={priceHistory} />
+          <span style={{ position: "absolute", top: "10px", right: "12px", fontSize: "0.7rem", color: "#9ca3af", background: "rgba(255,255,255,0.85)", padding: "2px 7px", borderRadius: "4px" }}>
+            Sample trend
+          </span>
+        </div>
 
         <div className="smart-alerts-card">
           <div className="section-card-title">Smart Alerts</div>

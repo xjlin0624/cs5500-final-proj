@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 
-import { getPreferences, registerPushToken, unregisterPushToken, updatePreferences } from "../api";
-import { settingsAccount } from "../mockData";
+import { getPreferences, getSelf, registerPushToken, unregisterPushToken, updatePreferences } from "../api";
 import { disableBrowserPush, enableBrowserPush, getStoredPushToken } from "../services/pushNotifications";
 
 const defaultPreferences = {
@@ -14,10 +13,15 @@ const defaultPreferences = {
 
 export default function Settings() {
   const [preferences, setPreferences] = useState(defaultPreferences);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    getSelf().then(setUser).catch(() => {});
+  }, []);
 
   useEffect(() => {
     async function loadPreferences() {
@@ -138,19 +142,19 @@ export default function Settings() {
         <div className="settings-grid two-col">
           <div className="form-group">
             <label>First Name</label>
-            <input value={settingsAccount.firstName} readOnly />
+            <input value={user?.display_name || ""} readOnly />
           </div>
 
           <div className="form-group">
             <label>Last Name</label>
-            <input value={settingsAccount.lastName} readOnly />
+            <input value="" readOnly />
           </div>
         </div>
 
         <div className="settings-grid one-col">
           <div className="form-group">
             <label>Email</label>
-            <input value={settingsAccount.email} readOnly />
+            <input value={user?.email || ""} readOnly />
           </div>
         </div>
 
