@@ -1,145 +1,118 @@
 # CS5500 Final Project: AfterCart
 
-*group 1: Yingchao Cai, Bo Hu, Xuelan Lin, Weiyi Sun*
+*Group 1: Yingchao Cai, Bo Hu, Xuelan Lin, Weiyi Sun*
 
-This project builds a "Post-Purchase Uncertainty Reducer" that helps shoppers feel confident after checkout by aggregating orders across retailers, monitoring price and delivery risks, and providing clear, actionable recommendations (price match, return/rebuy, replacement, or no action).
+AfterCart is a post-purchase assistant that aggregates orders, monitors price and delivery risks, and helps users decide whether to wait, contact support, cancel, return, or rebuy.
 
-## Objectives
+## Stack
+
+- Backend: `FastAPI`, `SQLAlchemy`, `Alembic`, `Celery`, `Redis`, `Postgres`
+- Frontend: `React`, `Vite`
+- Scraping: `Playwright` retailer adapters for Nike, Sephora, and Amazon price checks
+- Notifications/observability: `Firebase Cloud Messaging`, `Sentry`
+- Deployment targets: `Render` for backend services and `Vercel` for the dashboard
+
+## Repository Guides
+
+- Architecture: [docs/architecture.md](docs/architecture.md)
+- Engineering workflow: [docs/engineering-workflow.md](docs/engineering-workflow.md)
+- Operations and uptime: [docs/operations.md](docs/operations.md)
+- Scraper reliability: [docs/scraper-reliability.md](docs/scraper-reliability.md)
+- Student B execution plan: [docs/student-b-execution-plan.md](docs/student-b-execution-plan.md)
+- Student B checklist: [docs/student-b-checklist.md](docs/student-b-checklist.md)
+- Student B handoff: [docs/student-b-handoff.md](docs/student-b-handoff.md)
+- Demo walkthrough: [docs/student-b-demo.md](docs/student-b-demo.md)
+
+## Functional Scope
 
 ### MVP
 
-1. Cross-retailer Order Aggregation
-2. Price Drop and Better-Deal Monitoring
-3. Delivery Anomaly Detection and Plan B Recommendations
-4. Decision-Confidence Visualization
-5. Customer Support Message Assistance
+1. Cross-retailer order aggregation
+2. Price drop and better-deal monitoring
+3. Delivery anomaly detection and Plan B recommendations
+4. Decision-confidence visualization
+5. Customer-support message assistance
 
 ### Stretch Goals
-6. Personalized Recommendation Tuning
-7. Amazon Retailer Integration
 
-## Functional Requirements
+6. Personalized recommendation tuning
+7. Amazon retailer integration
 
-### Authentication & User Settings
-
-- **FR-1 (MUST)** User Authentication
-
-- **FR-2 (MUST)** User Preferences
-
-### Order Capture & Aggregation
-
-- **FR-3 (MUST)** Order Capture via Extension
-
-- **FR-4 (MUST)** Order De-duplication
-
-- **FR-5 (MUST)** Centralized Order View
-
-### Price Monitoring & Price History
-
-- **FR-6 (MUST)** Price History Storage
-
-- **FR-7 (MUST)** Price Drop Detection
-
-- ***FR-8 (SHOULD)** Same-Retailer Alternative Product Detection*
-
-### Recommendation Engine
-
-- **FR-9 (MUST)** Action Recommendation
-
-- **FR-10 (MUST)** Explainable Recommendation Output
-
-### Alerts & Notifications
-
-- **FR-11 (MUST)** Alert Management
-
-- **FR-12 (MUST)** Notification Delivery
-
-### Delivery Monitoring
-
-- **FR-13 (MUST)** Delivery ETA Monitoring
-
-- ***FR-14 (SHOULD)** Plan-B Suggestions for Delays*
-
-### Customer Support Message Assistance & Evidence
-
-- **FR-15 (MUST)** Message Templates
-
-- **FR-16 (MUST)** Evidence Bundling
-
-### Outcome Tracking & Savings
-
-- **FR-17 (MUST)** User Outcome Logging
-
-- **FR-18 (MUST)** Savings Dashboard
-
----
-
-## Running the Demo
+## Local Development
 
 ### Prerequisites
-- Docker Desktop running
-- Python 3.12 with dependencies: `pip install -r backend/requirements.txt`
-- Node.js: `cd frontend && npm install`
 
-### Start
+- Docker Desktop
+- Python `3.13` recommended for local backend tooling
+- Node.js `20+`
+
+### Initial Setup
 
 ```bash
-# 1. Copy env file and fill in DATABASE_URL with the shared Neon connection string (first time only)
 cp .env.example .env
-
-# 2. Start redis
-docker compose up redis -d
-
-# 3. Run migrations (first time only)
-cd backend && alembic upgrade head && cd ..
-
-# 4. Seed development data (first time only, requires APP_ENV=development)
-python backend/seed.py
-# To wipe and re-seed: python backend/seed.py --reset
-
-# 5. Start API server (keep this terminal open)
-cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# 6. In a new terminal — start frontend (keep this terminal open)
-cd frontend && npm run dev
-
 ```
 
-Open **http://localhost:5173** in your browser.
+Review `.env` and add secrets only if you need those integrations locally:
 
-To log in via the Chrome extension, load the `extension/` folder in Chrome (developer mode) and use the same credentials.
+- `GEMINI_API_KEY` for message generation
+- `SENTRY_DSN` / `VITE_SENTRY_DSN` for Sentry
+- Firebase credentials for browser push
+- Playwright storage-state files for authenticated retailer pages
 
-### Stop
+### Start the Local Platform
 
 ```bash
-# Ctrl+C in the API and frontend terminals, then:
-docker compose down
+docker compose up --build postgres redis api worker beat
 ```
 
----
+This brings up:
 
-## Environment Variables
+- Postgres on `localhost:5432`
+- Redis on `localhost:6379`
+- FastAPI on `http://localhost:8000`
+- Celery worker
+- Celery Beat scheduler
 
-| Variable | Dev | Production |
-|---|---|---|
-| `APP_ENV` | `development` | `production` |
-| `DATABASE_URL` | Shared Neon dev connection string | Neon prod branch connection string |
-| `JWT_SECRET` | Anything | Strong random secret (required) |
-| `ALLOWED_ORIGINS` | Leave empty (localhost auto-allowed) | Comma-separated frontend URLs |
-| `GEMINI_API_KEY` | Free key from [aistudio.google.com](https://aistudio.google.com/apikey) | Same — each dev gets their own key |
-| `LOG_LEVEL` | `INFO` or `DEBUG` | `INFO` or `WARNING` |
+The API container runs Alembic migrations automatically at startup.
 
-Swagger UI (`/api/docs`) is only enabled when `APP_ENV=development`.
-The seed script (`seed.py`) refuses to run unless `APP_ENV=development`.
+### Seed Demo Data
 
----
-
-## Local Scheduler Dev
-
-Copy `.env.example` to `.env` (with the shared Neon `DATABASE_URL`), then start the scheduler stack with:
+In a separate terminal:
 
 ```bash
-docker compose up --build worker beat redis
+py -3.13 backend/seed.py
+```
+
+To reset and reseed:
+
+```bash
+py -3.13 backend/seed.py --reset
+```
+
+### Run the Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+### Chrome Extension
+
+Load the `extension/` folder in Chrome Developer Mode and point it at the same API base URL as the dashboard.
+
+## Manual Backend Commands
+
+If you want to run backend tools outside Docker:
+
+```bash
+py -3.13 -m venv .venv313
+.\.venv313\Scripts\pip install -r backend/requirements.txt
+.\.venv313\Scripts\python -m playwright install chromium
+.\.venv313\Scripts\python -m pytest backend/tests
+.\.venv313\Scripts\python -m ruff check backend
 ```
 
 Useful Celery entrypoints:
@@ -148,3 +121,46 @@ Useful Celery entrypoints:
 celery -A backend.app.workers.celery_app.celery_app worker --loglevel=INFO
 celery -A backend.app.workers.celery_app.celery_app beat --loglevel=INFO
 ```
+
+## Health and Verification
+
+- API health: `GET /api/health`
+- API readiness: `GET /api/health/ready`
+- Swagger UI: `http://localhost:8000/api/docs` in development
+
+Recommended verification commands:
+
+```bash
+docker compose config
+.\.venv313\Scripts\python -m pytest backend/tests
+.\.venv313\Scripts\python -m ruff check backend
+.\.venv313\Scripts\python backend/scripts/validate_price_check_performance.py --items 100 --target-seconds 300
+.\.venv313\Scripts\python backend/scripts/measure_dashboard_load.py --url http://localhost:5173/dashboard --target-ms 2000 --headless
+cd frontend && npm run lint && npm run build
+```
+
+## Environment Variables
+
+The canonical variable reference lives in [.env.example](.env.example). Key groups:
+
+- platform/database/cache
+- auth
+- Celery schedules
+- Sentry
+- Playwright/scraper reliability
+- Gemini cache/rate limits
+- Firebase/FCM
+- Render/Vercel deployment URLs
+- frontend `VITE_*` build-time config
+
+## Deployment
+
+- Backend services and managed data stores are described in [render.yaml](render.yaml)
+- Frontend deployment assumptions live in [vercel.json](vercel.json)
+- CI and deploy automation live under `.github/workflows/`
+
+## Notes
+
+- Browser push no-ops safely until Firebase credentials are configured.
+- Delivery polling for Nike/Sephora uses Playwright storage-state files when authenticated retailer pages are required.
+- Amazon is implemented as a price-only adapter in this pass.
