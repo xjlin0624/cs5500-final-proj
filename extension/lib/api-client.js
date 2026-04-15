@@ -1,4 +1,13 @@
+<<<<<<< Updated upstream
 const API_BASE = "http://localhost:8000/api/v1"; // TODO: make configurable
+=======
+const DEFAULT_API_BASE = "http://localhost:8000/api";
+
+export async function getApiBaseUrl() {
+  const { apiBaseUrl } = await chrome.storage.local.get("apiBaseUrl");
+  return apiBaseUrl || DEFAULT_API_BASE;
+}
+>>>>>>> Stashed changes
 
 async function getAuthToken() {
   const { authToken } = await chrome.storage.local.get("authToken");
@@ -11,16 +20,17 @@ async function apiRequest(method, path, body = null) {
     throw new Error("NOT_AUTHENTICATED");
   }
 
+  const apiBase = await getApiBaseUrl();
   const opts = {
     method,
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
   };
   if (body) opts.body = JSON.stringify(body);
 
-  const res = await fetch(`${API_BASE}${path}`, opts);
+  const res = await fetch(`${apiBase}${path}`, opts);
 
   if (res.status === 401) {
     await chrome.storage.local.remove("authToken");
@@ -33,10 +43,15 @@ async function apiRequest(method, path, body = null) {
   return res.json();
 }
 
+<<<<<<< Updated upstream
 // Convenience wrappers
 const api = {
   get:  (path)       => apiRequest("GET", path),
+=======
+export const api = {
+  get: (path) => apiRequest("GET", path),
+>>>>>>> Stashed changes
   post: (path, body) => apiRequest("POST", path, body),
-  put:  (path, body) => apiRequest("PUT", path, body),
-  del:  (path)       => apiRequest("DELETE", path),
+  put: (path, body) => apiRequest("PUT", path, body),
+  del: (path) => apiRequest("DELETE", path),
 };
