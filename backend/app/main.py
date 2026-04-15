@@ -5,37 +5,44 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.alerts import router as alerts_router
 from .api.auth import router as auth_router
+from .api.health import router as health_router
 from .api.messages import router as messages_router
 from .api.orders import router as orders_router
 from .api.outcomes import router as outcomes_router
 from .api.preferences import router as preferences_router
 from .api.prices import router as prices_router
+from .api.push import router as push_router
 from .api.savings import router as savings_router
+from .api.subscriptions import router as subscriptions_router
 from .api.users import router as users_router
+from .core.observability import init_sentry
 from .core.settings import get_settings
 
 settings = get_settings()
+logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
+init_sentry("api")
 
 if settings.app_env == "production" and settings.jwt_secret == "change-me-in-production":
-    logging.warning("JWT_SECRET is not set — using insecure default. Set JWT_SECRET in your environment.")
+    logging.warning("JWT_SECRET is not set; using insecure default. Set JWT_SECRET in your environment.")
 
 _DEV_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
 
 app = FastAPI(
     title="AfterCart API",
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/api/docs" if settings.app_env == "development" else None,
     redoc_url=None,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_DEV_ORIGINS if settings.app_env == "development" else [o.strip() for o in settings.allowed_origins.split(",") if o.strip()],
+    allow_origins=_DEV_ORIGINS if settings.app_env == "development" else settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(orders_router, prefix="/api")
@@ -45,3 +52,5 @@ app.include_router(alerts_router, prefix="/api")
 app.include_router(outcomes_router, prefix="/api")
 app.include_router(savings_router, prefix="/api")
 app.include_router(messages_router, prefix="/api")
+app.include_router(push_router, prefix="/api")
+app.include_router(subscriptions_router, prefix="/api")
