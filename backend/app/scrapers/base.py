@@ -1,8 +1,9 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any
 
-from ..models.order_item import OrderItem
+from ..models.enums import OrderStatus
 
 
 @dataclass(slots=True)
@@ -11,11 +12,29 @@ class PriceCheckResult:
     currency: str = "USD"
     is_available: bool = True
     raw_payload: dict[str, Any] = field(default_factory=dict)
+    source_url: str | None = None
 
 
-class RetailerPriceAdapter(ABC):
+@dataclass(slots=True)
+class DeliveryCheckResult:
+    order_status: OrderStatus | None = None
+    estimated_delivery: date | None = None
+    delivered_at: datetime | None = None
+    tracking_number: str | None = None
+    carrier: str | None = None
+    carrier_status_raw: str | None = None
+    raw_payload: dict[str, Any] = field(default_factory=dict)
+
+
+class RetailerAdapter(ABC):
     retailer: str
 
-    @abstractmethod
-    def fetch_current_price(self, order_item: OrderItem) -> PriceCheckResult:
+    def fetch_current_price(self, order_item) -> PriceCheckResult:
         raise NotImplementedError
+
+    def fetch_delivery_status(self, order) -> DeliveryCheckResult:
+        raise NotImplementedError
+
+
+class RetailerPriceAdapter(RetailerAdapter):
+    pass

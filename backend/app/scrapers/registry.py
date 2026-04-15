@@ -1,27 +1,23 @@
-from .base import PriceCheckResult, RetailerPriceAdapter
+from .amazon import AmazonAdapter
+from .base import RetailerAdapter
+from .nike import NikeAdapter
+from .sephora import SephoraAdapter
 
 
-class NikePriceAdapter(RetailerPriceAdapter):
-    retailer = "nike"
-
-    def fetch_current_price(self, order_item) -> PriceCheckResult:
-        raise NotImplementedError("Nike price adapter is not implemented yet.")
-
-
-class SephoraPriceAdapter(RetailerPriceAdapter):
-    retailer = "sephora"
-
-    def fetch_current_price(self, order_item) -> PriceCheckResult:
-        raise NotImplementedError("Sephora price adapter is not implemented yet.")
-
-
-PRICE_ADAPTERS: dict[str, RetailerPriceAdapter] = {
-    "nike": NikePriceAdapter(),
-    "sephora": SephoraPriceAdapter(),
+RETAILER_ADAPTERS: dict[str, RetailerAdapter] = {
+    "amazon": AmazonAdapter(),
+    "nike": NikeAdapter(),
+    "sephora": SephoraAdapter(),
 }
 
 
-def get_price_adapter(retailer: str | None) -> RetailerPriceAdapter | None:
+def get_price_adapter(retailer: str | None) -> RetailerAdapter | None:
     if not retailer:
         return None
-    return PRICE_ADAPTERS.get(retailer.lower())
+    return RETAILER_ADAPTERS.get(retailer.lower())
+
+
+def get_delivery_adapter(retailer: str | None) -> RetailerAdapter | None:
+    if not retailer:
+        return None
+    return RETAILER_ADAPTERS.get(retailer.lower())
