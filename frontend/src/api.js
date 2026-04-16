@@ -182,3 +182,46 @@ export async function getSavingsSummary(limit) {
   });
   return handleResponse(res);
 }
+
+export async function getSubscriptions() {
+  const res = await fetch(createApiUrl("subscriptions"), {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse(res);
+}
+
+export async function getPriceHistory(itemId, limit) {
+  const res = await fetch(createApiUrl(`prices/${itemId}/history`, limit ? { limit } : {}), {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse(res);
+}
+
+export async function getAlertRecommendation(alertId) {
+  const res = await fetch(createApiUrl(`alerts/${alertId}/recommendation`), {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse(res);
+}
+
+export async function getAlertMessage(alertId, tone) {
+  const res = await fetch(
+    createApiUrl(`alerts/${alertId}/message`, tone ? { tone } : {}),
+    {
+      headers: { ...authHeaders() },
+    }
+  );
+  return handleResponse(res);
+}
+
+export async function logOutcome(payload) {
+  const res = await fetch(createApiUrl("outcomes"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}

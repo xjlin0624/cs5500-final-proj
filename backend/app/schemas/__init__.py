@@ -16,6 +16,7 @@ from .order_item import (
 from .outcome_log import OutcomeLogCreate as OutcomeLogCreate, OutcomeLogRead as OutcomeLogRead
 from .price_snapshot import PriceSnapshotRead as PriceSnapshotRead
 from .push_token import PushTokenRead as PushTokenRead, PushTokenUpsert as PushTokenUpsert
+from .subscription import SubscriptionRead as SubscriptionRead
 from .user import UserCreate as UserCreate, UserRead as UserRead, UserUpdate as UserUpdate
 from .user_preferences import (
     UserPreferencesRead as UserPreferencesRead,
@@ -41,6 +42,7 @@ __all__ = [
     "PushTokenRead",
     "PushTokenUpsert",
     "RecommendationFactor",
+    "SubscriptionRead",
     "UserCreate",
     "UserPreferencesRead",
     "UserPreferencesUpdate",

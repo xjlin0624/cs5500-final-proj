@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { dismissAlert, getAlerts, resolveAlert } from "../api";
+import { Link } from "react-router-dom";
+
+import {
+  dismissAlert,
+  getAlertMessage,
+  getAlertRecommendation,
+  getAlerts,
+  logOutcome,
+  resolveAlert,
+} from "../api";
 
 function normalizeAlerts(data) {
   if (Array.isArray(data)) return data;
@@ -53,25 +62,26 @@ function formatEvidence(alert) {
     .join(" | ");
 }
 
-function mapAlert(alert, index) {
-  const priority = String(alert.priority || "medium");
-  const status = String(alert.status || "unknown");
+function mapRecommendedActionToOutcome(action) {
+  if (action === "price_match") return "price_matched";
+  if (action === "return_and_rebuy") return "returned_and_rebought";
+  return "ignored";
+}
 
-  return {
-    id: alert.id || alert.alert_id || index,
-    title: alert.title || formatAlertType(alert.alert_type),
-    meta: `${formatAlertType(alert.alert_type)} | ${priority.toUpperCase()}`,
-    evidence: formatEvidence(alert),
-    message: String(alert.body || "No message available."),
-    active: status !== "dismissed" && status !== "resolved",
-    activeLabel: status.charAt(0).toUpperCase() + status.slice(1),
-  };
+function isActiveAlert(alert) {
+  const status = String(alert.status || "").toLowerCase();
+  return status !== "dismissed" && status !== "resolved";
 }
 
 export default function Alerts() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
+  const [activeTab, setActiveTab] = useState("active");
+  const [recommendations, setRecommendations] = useState({});
+  const [messages, setMessages] = useState({});
 
   async function loadAlerts() {
     try {
@@ -92,95 +102,262 @@ export default function Alerts() {
 
   async function handleResolve(id) {
     try {
+      setBusyId(id);
+      setStatusMsg("");
       await resolveAlert(id);
       await loadAlerts();
     } catch (error) {
       setErrorMsg(error.message || "Failed to resolve alert");
+    } finally {
+      setBusyId("");
     }
   }
 
   async function handleDismiss(id) {
     try {
+      setBusyId(id);
+      setStatusMsg("");
       await dismissAlert(id);
       await loadAlerts();
     } catch (error) {
       setErrorMsg(error.message || "Failed to dismiss alert");
+    } finally {
+      setBusyId("");
     }
   }
 
-  const mappedAlerts = useMemo(() => alerts.map(mapAlert), [alerts]);
+  async function handleLoadRecommendation(alertId) {
+    try {
+      setBusyId(alertId);
+      setErrorMsg("");
+      const data = await getAlertRecommendation(alertId);
+      setRecommendations((current) => ({
+        ...current,
+        [alertId]: data,
+      }));
+    } catch (error) {
+      setErrorMsg(error.message || "Failed to load recommendation");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function handleLoadMessage(alertId) {
+    try {
+      setBusyId(alertId);
+      setErrorMsg("");
+      const data = await getAlertMessage(alertId);
+      setMessages((current) => ({
+        ...current,
+        [alertId]: data,
+      }));
+    } catch (error) {
+      setErrorMsg(error.message || "Failed to generate support message");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function handleLogOutcome(alert) {
+    try {
+      setBusyId(alert.id);
+      setErrorMsg("");
+      setStatusMsg("");
+
+      await logOutcome({
+        alert_id: alert.id,
+        order_item_id: alert.order_item_id || null,
+        action_taken: mapRecommendedActionToOutcome(alert.recommended_action),
+        recovered_value:
+          alert.estimated_savings !== null && alert.estimated_savings !== undefined
+            ? Number(alert.estimated_savings)
+            : null,
+        was_successful: true,
+      });
+
+      setStatusMsg("Outcome logged. Your Savings page will reflect it after refresh.");
+      await loadAlerts();
+    } catch (error) {
+      setErrorMsg(error.message || "Failed to log outcome");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter((alert) =>
+      activeTab === "active" ? isActiveAlert(alert) : !isActiveAlert(alert)
+    );
+  }, [activeTab, alerts]);
 
   return (
     <div className="page-content">
       {loading && <p>Loading alerts...</p>}
+      {statusMsg && <p style={{ color: "green" }}>{statusMsg}</p>}
       {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
 
       <div className="page-helper-row">
         <div className="page-helper-text">
-          Review price drops and delivery issues that need your attention.
+          Review price drops and delivery issues, then generate a message or log the result.
         </div>
-        <button className="primary-btn" type="button">
-          + Create New Alert
-        </button>
+        <Link className="primary-btn" to="/savings">
+          View Savings History
+        </Link>
       </div>
 
       <div className="pill-tabs">
-        <button className="pill-tab active" type="button">
+        <button
+          className={`pill-tab ${activeTab === "active" ? "active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("active")}
+        >
           Active Alerts
         </button>
-        <button className="pill-tab" type="button">
-          Triggered Alerts
+        <button
+          className={`pill-tab ${activeTab === "history" ? "active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("history")}
+        >
+          Alert History
         </button>
       </div>
 
       <div className="three-col-grid alerts-grid">
-        {mappedAlerts.length === 0 && !loading ? (
-          <p>No alerts found.</p>
+        {filteredAlerts.length === 0 && !loading ? (
+          <p>
+            {activeTab === "active"
+              ? "No active alerts found."
+              : "No resolved or dismissed alerts yet."}
+          </p>
         ) : (
-          mappedAlerts.map((item) => (
-            <div className="alert-card" key={item.id}>
-              <div className="alert-card-top">
-                <div className="alert-image-box">!</div>
-                <div>
-                  <div className="alert-product">{item.title}</div>
-                  <div className="alert-store">{item.meta}</div>
-                </div>
-              </div>
+          filteredAlerts.map((alert) => {
+            const recommendation = recommendations[alert.id];
+            const message = messages[alert.id];
+            const isBusy = busyId === alert.id;
 
-              <div className="alert-info-list">
-                <div className="alert-info-row">
-                  <span>Evidence</span>
-                  <strong>{item.evidence}</strong>
+            return (
+              <div className="alert-card" key={alert.id}>
+                <div className="alert-card-top">
+                  <div className="alert-image-box">!</div>
+                  <div>
+                    <div className="alert-product">{alert.title || formatAlertType(alert.alert_type)}</div>
+                    <div className="alert-store">
+                      {formatAlertType(alert.alert_type)} | {String(alert.priority || "medium").toUpperCase()}
+                    </div>
+                  </div>
                 </div>
-                <div className="alert-info-row">
-                  <span>Message</span>
-                  <strong>{item.message}</strong>
-                </div>
-              </div>
 
-              <div className="alert-actions-row">
-                <span className="mini-status">
-                  {item.active ? `Active: ${item.activeLabel}` : item.activeLabel}
-                </span>
-                <div className="alert-action-buttons">
+                <div className="alert-info-list">
+                  <div className="alert-info-row">
+                    <span>Evidence</span>
+                    <strong>{formatEvidence(alert)}</strong>
+                  </div>
+                  <div className="alert-info-row">
+                    <span>Message</span>
+                    <strong>{String(alert.body || "No message available.")}</strong>
+                  </div>
+                </div>
+
+                {recommendation ? (
+                  <div className="alert-info-list" style={{ marginTop: "12px" }}>
+                    <div className="alert-info-row">
+                      <span>Recommendation</span>
+                      <strong>{String(recommendation.recommended_action).replaceAll("_", " ")}</strong>
+                    </div>
+                    <div className="alert-info-row">
+                      <span>Why</span>
+                      <strong>{recommendation.rationale}</strong>
+                    </div>
+                    <div className="alert-info-row">
+                      <span>Estimated savings</span>
+                      <strong>{formatCurrency(recommendation.estimated_savings) || "Not available"}</strong>
+                    </div>
+                    {Array.isArray(recommendation.action_steps) && recommendation.action_steps.length > 0 ? (
+                      <div>
+                        <span style={{ display: "block", fontSize: "0.8rem", color: "#6b7280", marginBottom: "6px" }}>
+                          Action steps
+                        </span>
+                        <ol style={{ margin: 0, paddingLeft: "18px" }}>
+                          {recommendation.action_steps.map((step) => (
+                            <li key={`${alert.id}-step-${step.step}`}>{step.instruction}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {message ? (
+                  <div className="alert-info-list" style={{ marginTop: "12px" }}>
+                    <div className="alert-info-row">
+                      <span>Support draft</span>
+                      <strong style={{ whiteSpace: "pre-wrap" }}>{message.message}</strong>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div
+                  className="alert-action-buttons"
+                  style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "16px" }}
+                >
+                  {alert.recommended_action ? (
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handleLoadRecommendation(alert.id)}
+                    >
+                      Recommendation
+                    </button>
+                  ) : null}
                   <button
                     className="secondary-btn"
                     type="button"
-                    onClick={() => handleResolve(item.id)}
+                    disabled={isBusy}
+                    onClick={() => handleLoadMessage(alert.id)}
                   >
-                    Resolve
+                    Draft Message
                   </button>
-                  <button
-                    className="danger-text-btn"
-                    type="button"
-                    onClick={() => handleDismiss(item.id)}
-                  >
-                    Dismiss
-                  </button>
+                  {alert.recommended_action ? (
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handleLogOutcome(alert)}
+                    >
+                      Log Success
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="alert-actions-row">
+                  <span className="mini-status">
+                    {isActiveAlert(alert)
+                      ? `Active: ${String(alert.status || "new")}`
+                      : String(alert.status || "unknown")}
+                  </span>
+                  <div className="alert-action-buttons">
+                    <button
+                      className="secondary-btn"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handleResolve(alert.id)}
+                    >
+                      Resolve
+                    </button>
+                    <button
+                      className="danger-text-btn"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handleDismiss(alert.id)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
