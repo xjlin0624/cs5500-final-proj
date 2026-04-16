@@ -177,9 +177,157 @@ def run(reset: bool = False) -> None:
             estimated_delivery=TODAY + timedelta(days=4),
             order_url="https://amazon.com/orders/113-9876543-2109876",
         )
-        session.add_all([order1, order2, order3])
+        # Nike + Sephora orders spread across past 6 months
+        order4 = Order(
+            id=uuid4(),
+            user_id=user1.id,
+            retailer="nike",
+            retailer_order_id="NIKE-20251015-002",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=182),  # ~Oct 2025
+            subtotal=110.00,
+            currency="USD",
+            return_window_days=60,
+            return_deadline=TODAY - timedelta(days=122),
+            price_match_eligible=True,
+            tracking_number="9400111899223397662959",
+            carrier="USPS",
+            estimated_delivery=(NOW - timedelta(days=176)).date(),
+            delivered_at=NOW - timedelta(days=176),
+            order_url="https://nike.com/orders/NIKE-20251015-002",
+        )
+        order5 = Order(
+            id=uuid4(),
+            user_id=user1.id,
+            retailer="sephora",
+            retailer_order_id="SEPH-20251110-001",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=156),  # ~Nov 2025
+            subtotal=34.00,
+            currency="USD",
+            return_window_days=30,
+            return_deadline=TODAY - timedelta(days=126),
+            price_match_eligible=True,
+            order_url="https://sephora.com/orders/SEPH-20251110-001",
+        )
+        order6 = Order(
+            id=uuid4(),
+            user_id=user1.id,
+            retailer="nike",
+            retailer_order_id="NIKE-20251205-003",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=131),  # ~Dec 2025
+            subtotal=160.00,
+            currency="USD",
+            return_window_days=60,
+            return_deadline=TODAY - timedelta(days=71),
+            price_match_eligible=True,
+            tracking_number="9400111899223397662960",
+            carrier="USPS",
+            estimated_delivery=(NOW - timedelta(days=125)).date(),
+            delivered_at=NOW - timedelta(days=125),
+            order_url="https://nike.com/orders/NIKE-20251205-003",
+        )
+        order7 = Order(
+            id=uuid4(),
+            user_id=user1.id,
+            retailer="sephora",
+            retailer_order_id="SEPH-20251218-002",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=118),  # ~Dec 2025
+            subtotal=68.00,
+            currency="USD",
+            return_window_days=30,
+            return_deadline=TODAY - timedelta(days=88),
+            price_match_eligible=True,
+            order_url="https://sephora.com/orders/SEPH-20251218-002",
+        )
+        order8 = Order(
+            id=uuid4(),
+            user_id=user1.id,
+            retailer="nike",
+            retailer_order_id="NIKE-20260115-004",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=90),  # ~Jan 2026
+            subtotal=35.00,
+            currency="USD",
+            return_window_days=60,
+            return_deadline=TODAY - timedelta(days=30),
+            price_match_eligible=False,
+            tracking_number="9400111899223397662961",
+            carrier="USPS",
+            estimated_delivery=(NOW - timedelta(days=84)).date(),
+            delivered_at=NOW - timedelta(days=84),
+            order_url="https://nike.com/orders/NIKE-20260115-004",
+        )
+        order9 = Order(
+            id=uuid4(),
+            user_id=user1.id,
+            retailer="nike",
+            retailer_order_id="NIKE-20260210-005",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=64),  # ~Feb 2026
+            subtotal=100.00,
+            currency="USD",
+            return_window_days=60,
+            return_deadline=TODAY + timedelta(days=4),
+            price_match_eligible=True,
+            tracking_number="9400111899223397662962",
+            carrier="USPS",
+            estimated_delivery=(NOW - timedelta(days=58)).date(),
+            delivered_at=NOW - timedelta(days=58),
+            order_url="https://nike.com/orders/NIKE-20260210-005",
+        )
+        order10 = Order(
+            id=uuid4(),
+            user_id=user1.id,
+            retailer="sephora",
+            retailer_order_id="SEPH-20260220-003",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=54),  # ~Feb 2026
+            subtotal=38.00,
+            currency="USD",
+            return_window_days=30,
+            return_deadline=TODAY - timedelta(days=24),
+            price_match_eligible=False,
+            order_url="https://sephora.com/orders/SEPH-20260220-003",
+        )
+        order11 = Order(
+            id=uuid4(),
+            user_id=user2.id,
+            retailer="sephora",
+            retailer_order_id="SEPH-20251120-004",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=146),  # ~Nov 2025
+            subtotal=40.00,
+            currency="USD",
+            return_window_days=30,
+            return_deadline=TODAY - timedelta(days=116),
+            price_match_eligible=True,
+            order_url="https://sephora.com/orders/SEPH-20251120-004",
+        )
+        order12 = Order(
+            id=uuid4(),
+            user_id=user2.id,
+            retailer="nike",
+            retailer_order_id="NIKE-20260310-006",
+            order_status=OrderStatus.delivered,
+            order_date=NOW - timedelta(days=36),  # ~Mar 2026
+            subtotal=130.00,
+            currency="USD",
+            return_window_days=60,
+            return_deadline=TODAY + timedelta(days=24),
+            price_match_eligible=True,
+            tracking_number="9400111899223397662963",
+            carrier="USPS",
+            estimated_delivery=(NOW - timedelta(days=30)).date(),
+            delivered_at=NOW - timedelta(days=30),
+            order_url="https://nike.com/orders/NIKE-20260310-006",
+        )
+
+        session.add_all([order1, order2, order3, order4, order5, order6, order7, order8, order9, order10, order11, order12])
         session.flush()
-        print(f"  Created {3} orders")
+        print(f"  Created {12} orders")
 
         # -------------------------------------------------------------------
         # Order Items
@@ -237,9 +385,130 @@ def run(reset: bool = False) -> None:
             current_price=219.00,
             is_monitoring_active=True,
         )
-        session.add_all([item1, item2, item3, item4])
+        item5 = OrderItem(
+            id=uuid4(),
+            order_id=order4.id,
+            user_id=user1.id,
+            product_name="Nike Air Force 1 '07",
+            variant="White, Size 10",
+            sku="CW2288-111",
+            product_url="https://nike.com/t/air-force-1-07-mens-shoes",
+            quantity=1,
+            paid_price=110.00,
+            current_price=90.00,
+            is_monitoring_active=False,
+            monitoring_stopped_reason=MonitoringStoppedReason.delivered_and_settled,
+        )
+        item6 = OrderItem(
+            id=uuid4(),
+            order_id=order5.id,
+            user_id=user1.id,
+            product_name="Charlotte Tilbury Matte Revolution Lipstick",
+            variant="Pillow Talk",
+            product_url="https://sephora.com/product/matte-revolution-lipstick",
+            quantity=1,
+            paid_price=34.00,
+            current_price=34.00,
+            is_monitoring_active=False,
+            monitoring_stopped_reason=MonitoringStoppedReason.delivered_and_settled,
+        )
+        item7 = OrderItem(
+            id=uuid4(),
+            order_id=order6.id,
+            user_id=user1.id,
+            product_name="Nike React Infinity Run Flyknit 3",
+            variant="Black/White, Size 10",
+            sku="DH5392-001",
+            product_url="https://nike.com/t/react-infinity-run-flyknit-3-mens-road-running-shoes",
+            quantity=1,
+            paid_price=160.00,
+            current_price=130.00,
+            is_monitoring_active=False,
+            monitoring_stopped_reason=MonitoringStoppedReason.delivered_and_settled,
+        )
+        item8 = OrderItem(
+            id=uuid4(),
+            order_id=order7.id,
+            user_id=user1.id,
+            product_name="Drunk Elephant Protini Polypeptide Moisturizer",
+            variant="50ml",
+            product_url="https://sephora.com/product/protini-polypeptide-moisturizer",
+            quantity=1,
+            paid_price=68.00,
+            current_price=58.00,
+            is_monitoring_active=False,
+            monitoring_stopped_reason=MonitoringStoppedReason.delivered_and_settled,
+        )
+        item9 = OrderItem(
+            id=uuid4(),
+            order_id=order8.id,
+            user_id=user1.id,
+            product_name="Nike Dri-FIT Training T-Shirt",
+            variant="Navy, Size M",
+            sku="AR6029-451",
+            product_url="https://nike.com/t/dri-fit-training-t-shirt",
+            quantity=1,
+            paid_price=35.00,
+            current_price=35.00,
+            is_monitoring_active=False,
+            monitoring_stopped_reason=MonitoringStoppedReason.delivered_and_settled,
+        )
+        item10 = OrderItem(
+            id=uuid4(),
+            order_id=order9.id,
+            user_id=user1.id,
+            product_name="Nike Blazer Mid '77 Vintage",
+            variant="White/Black, Size 10",
+            sku="BQ6806-100",
+            product_url="https://nike.com/t/blazer-mid-77-vintage-mens-shoes",
+            quantity=1,
+            paid_price=100.00,
+            current_price=85.00,
+            is_monitoring_active=True,
+        )
+        item11 = OrderItem(
+            id=uuid4(),
+            order_id=order10.id,
+            user_id=user1.id,
+            product_name="Tatcha The Rice Wash Cleanser",
+            variant="150ml",
+            product_url="https://sephora.com/product/the-rice-wash-skin-softening-cleanser",
+            quantity=1,
+            paid_price=38.00,
+            current_price=38.00,
+            is_monitoring_active=False,
+            monitoring_stopped_reason=MonitoringStoppedReason.delivered_and_settled,
+        )
+        item12 = OrderItem(
+            id=uuid4(),
+            order_id=order11.id,
+            user_id=user2.id,
+            product_name="Fenty Beauty Pro Filt'r Foundation",
+            variant="Shade 260N",
+            product_url="https://sephora.com/product/pro-filtr-soft-matte-longwear-foundation",
+            quantity=1,
+            paid_price=40.00,
+            current_price=36.00,
+            is_monitoring_active=False,
+            monitoring_stopped_reason=MonitoringStoppedReason.delivered_and_settled,
+        )
+        item13 = OrderItem(
+            id=uuid4(),
+            order_id=order12.id,
+            user_id=user2.id,
+            product_name="Nike Air Zoom Pegasus 40",
+            variant="Blue/White, Size 9",
+            sku="DV3853-400",
+            product_url="https://nike.com/t/air-zoom-pegasus-40-mens-road-running-shoes",
+            quantity=1,
+            paid_price=130.00,
+            current_price=110.00,
+            is_monitoring_active=True,
+        )
+
+        session.add_all([item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13])
         session.flush()
-        print(f"  Created {4} order items")
+        print(f"  Created {13} order items")
 
         # -------------------------------------------------------------------
         # Price Snapshots
@@ -404,6 +673,84 @@ def run(reset: bool = False) -> None:
                 recovered_value=50.00,
                 was_successful=True,
                 notes="Called Amazon support, got $50 credit applied.",
+                logged_at=NOW - timedelta(days=2),
+            ),
+            # Oct 2025 — Nike Air Force 1 price match
+            OutcomeLog(
+                id=uuid4(),
+                user_id=user1.id,
+                order_item_id=item5.id,
+                action_taken=ActionTaken.price_matched,
+                recovered_value=20.00,
+                was_successful=True,
+                notes="Nike price match granted via chat support.",
+                logged_at=NOW - timedelta(days=170),
+            ),
+            # Nov 2025 — Sephora Charlotte Tilbury, no savings (price held)
+            OutcomeLog(
+                id=uuid4(),
+                user_id=user1.id,
+                order_item_id=item6.id,
+                action_taken=ActionTaken.ignored,
+                recovered_value=0.00,
+                was_successful=False,
+                notes="Price did not drop within return window.",
+                logged_at=NOW - timedelta(days=140),
+            ),
+            # Dec 2025 — Nike React Infinity Run price match
+            OutcomeLog(
+                id=uuid4(),
+                user_id=user1.id,
+                order_item_id=item7.id,
+                action_taken=ActionTaken.price_matched,
+                recovered_value=30.00,
+                was_successful=True,
+                notes="Nike online price match applied successfully.",
+                logged_at=NOW - timedelta(days=118),
+            ),
+            # Dec 2025 — Drunk Elephant price match
+            OutcomeLog(
+                id=uuid4(),
+                user_id=user1.id,
+                order_item_id=item8.id,
+                action_taken=ActionTaken.price_matched,
+                recovered_value=10.00,
+                was_successful=True,
+                notes="Sephora Beauty Insider price match via email.",
+                logged_at=NOW - timedelta(days=105),
+            ),
+            # Feb 2026 — Nike Blazer Mid price match
+            OutcomeLog(
+                id=uuid4(),
+                user_id=user1.id,
+                order_item_id=item10.id,
+                action_taken=ActionTaken.price_matched,
+                recovered_value=15.00,
+                was_successful=True,
+                notes="Nike price match approved within return window.",
+                logged_at=NOW - timedelta(days=50),
+            ),
+            # Nov 2025 — Fenty Beauty price match (bob)
+            OutcomeLog(
+                id=uuid4(),
+                user_id=user2.id,
+                order_item_id=item12.id,
+                action_taken=ActionTaken.price_matched,
+                recovered_value=4.00,
+                was_successful=True,
+                notes="Sephora matched sale price via app chat.",
+                logged_at=NOW - timedelta(days=130),
+            ),
+            # Mar 2026 — Nike Pegasus price match pending (bob)
+            OutcomeLog(
+                id=uuid4(),
+                user_id=user2.id,
+                order_item_id=item13.id,
+                action_taken=ActionTaken.price_matched,
+                recovered_value=20.00,
+                was_successful=True,
+                notes="Nike price match confirmed by support team.",
+                logged_at=NOW - timedelta(days=25),
             ),
         ])
         session.flush()
@@ -412,8 +759,8 @@ def run(reset: bool = False) -> None:
         session.commit()
         print("\nDone! Seeded:")
         print("  2 users (alice@example.com / bob@example.com, password: password123)")
-        print("  3 orders, 4 order items, 5 price snapshots")
-        print("  3 delivery events, 3 alerts, 1 outcome log")
+        print("  12 orders, 13 order items, 5 price snapshots")
+        print("  3 delivery events, 3 alerts, 8 outcome logs")
 
 
 if __name__ == "__main__":

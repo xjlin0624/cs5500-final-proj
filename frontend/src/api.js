@@ -175,3 +175,10 @@ export async function getSelf() {
   });
   return handleResponse(res);
 }
+
+export async function getSavingsSummary(limit) {
+  const res = await fetch(createApiUrl("savings/summary", limit ? { limit } : {}), {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse(res);
+}
