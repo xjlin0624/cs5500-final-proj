@@ -198,29 +198,29 @@ def test_find_or_create_does_not_add_duplicate_to_session():
 
 def test_retailer_is_lowercased():
     parsed = OrderIngest(
-        retailer="AMAZON",
+        retailer="NIKE",
         retailer_order_id="112-0000001-0000001",
         order_status=OrderStatus.pending,
         order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
         subtotal=10.0,
     )
-    assert parsed.retailer == "amazon"
+    assert parsed.retailer == "nike"
 
 
 def test_retailer_whitespace_is_stripped():
     parsed = OrderIngest(
-        retailer="  target  ",
+        retailer="  sephora  ",
         retailer_order_id="100-9876543-9876543",
         order_status=OrderStatus.pending,
         order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
         subtotal=10.0,
     )
-    assert parsed.retailer == "target"
+    assert parsed.retailer == "sephora"
 
 
 def test_order_id_whitespace_is_stripped():
     parsed = OrderIngest(
-        retailer="amazon",
+        retailer="nike",
         retailer_order_id="  112-0000001-0000001  ",
         order_status=OrderStatus.pending,
         order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
@@ -550,17 +550,17 @@ def test_list_orders_empty_returns_empty_list():
 
 def test_list_orders_filter_by_retailer():
     user = _make_user()
-    amazon = _make_order_with_items(user, retailer="amazon")
-    target = _make_order_with_items(user, retailer="target")
-    target.retailer_order_id = "T-999"
-    client = _make_list_client(FakeListSession([amazon, target]), user)
+    nike = _make_order_with_items(user, retailer="nike")
+    sephora = _make_order_with_items(user, retailer="sephora")
+    sephora.retailer_order_id = "S-999"
+    client = _make_list_client(FakeListSession([nike, sephora]), user)
 
-    resp = client.get("/api/orders?retailer=amazon")
+    resp = client.get("/api/orders?retailer=nike")
 
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 1
-    assert data[0]["retailer"] == "amazon"
+    assert data[0]["retailer"] == "nike"
 
 
 def test_list_orders_filter_by_status():

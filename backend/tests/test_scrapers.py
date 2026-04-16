@@ -1,6 +1,5 @@
 from backend.app.models.enums import OrderStatus
 from backend.app.scrapers import (
-    parse_amazon_price_html,
     parse_nike_delivery_html,
     parse_nike_price_html,
     parse_sephora_delivery_html,
@@ -36,19 +35,6 @@ def test_parse_sephora_price_html_from_visible_price():
     assert result.scraped_price == 49.00
     assert result.is_available is True
 
-
-def test_parse_amazon_price_html_from_standard_selector():
-    html = """
-    <html>
-      <body>
-        <span class="a-price"><span class="a-offscreen">$22.49</span></span>
-      </body>
-    </html>
-    """
-
-    result = parse_amazon_price_html(html)
-
-    assert result.scraped_price == 22.49
 
 
 def test_parse_nike_delivery_html_extracts_status_eta_and_tracking():

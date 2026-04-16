@@ -12,7 +12,6 @@
   "host_permissions": [
     "https://www.nike.com/*",
     "https://www.sephora.com/*",
-    "https://www.target.com/*",
     "http://localhost:8000/*"
   ],
   "background": {
@@ -35,14 +34,6 @@
         "https://www.sephora.com/product/*"
       ],
       "js": ["content/retailers/sephora.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://www.target.com/account/order-detail*",
-        "https://www.target.com/p/*"
-      ],
-      "js": ["content/retailers/target.js"],
       "run_at": "document_idle"
     }
   ],

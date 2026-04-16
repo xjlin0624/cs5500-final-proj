@@ -18,15 +18,5 @@
       "If the order is already processing, contact Sephora support immediately."
     ],
     "notes": "Orders often move to processing quickly, so cancellation windows may be short."
-  },
-  {
-    "retailer": "amazon",
-    "cancellation_url": "https://www.amazon.com/gp/your-account/order-history",
-    "steps": [
-      "Open Amazon order history.",
-      "Select the order and choose cancel items if the action is available.",
-      "If cancellation is unavailable, review return and refund options after delivery."
-    ],
-    "notes": "Availability depends on seller, shipment status, and fulfillment method."
   }
 ]

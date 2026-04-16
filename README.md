@@ -8,7 +8,7 @@ AfterCart is a post-purchase assistant that aggregates orders, monitors price an
 
 - Backend: `FastAPI`, `SQLAlchemy`, `Alembic`, `Celery`, `Redis`, `Postgres`
 - Frontend: `React`, `Vite`
-- Scraping: `Playwright` retailer adapters for Nike, Sephora, and Amazon price checks
+- Scraping: `Playwright` retailer adapters for Nike and Sephora price checks and delivery polling
 - Notifications and observability: `Firebase Cloud Messaging`, `Sentry`
 - Deployment targets: `Render` for backend services and `Vercel` for the dashboard
 
@@ -33,10 +33,9 @@ AfterCart is a post-purchase assistant that aggregates orders, monitors price an
 4. Decision-confidence visualization
 5. Customer-support message assistance
 
-### Stretch Goals
+### Stretch Goals (not pursued)
 
 6. Personalized recommendation tuning
-7. Amazon retailer integration
 
 ## Local Development
 
@@ -120,18 +119,15 @@ Current extension retailer support:
 
 - Nike: order-page and product-page capture
 - Sephora: order-page and product-page capture
-- Target: intentionally unsupported in this build; the content script exits without attempting extraction
 
 ## Retailer Support Matrix
 
-| Surface | Nike | Sephora | Amazon | Target |
-| --- | --- | --- | --- | --- |
-| Extension order capture | Supported | Supported | Not implemented | Unsupported in this build |
-| Extension product-page price capture | Supported | Supported | Not implemented | Unsupported in this build |
-| Backend price checks | Supported | Supported | Supported | Not implemented |
-| Backend delivery polling | Supported with authenticated Playwright storage state | Supported with authenticated Playwright storage state | Not implemented | Not implemented |
-
-Amazon remains price-only in the current repository state.
+| Surface | Nike | Sephora |
+| --- | --- | --- |
+| Extension order capture | Supported | Supported |
+| Extension product-page price capture | Supported | Supported |
+| Backend price checks | Supported | Supported |
+| Backend delivery polling | Supported (requires authenticated Playwright storage state) | Supported (requires authenticated Playwright storage state) |
 
 ## Manual Backend Commands
 
@@ -200,6 +196,6 @@ The canonical variable reference lives in [.env.example](.env.example). Key grou
 
 - Browser push no-ops safely until Firebase credentials are configured.
 - Delivery polling for Nike and Sephora uses Playwright storage-state files when authenticated retailer pages are required.
-- Amazon is implemented as a price-only adapter in this pass.
+- Amazon retailer integration is a deprioritized stretch goal — not part of this build.
 - Savings, Subscriptions, Dashboard summaries, and extension popup savings now use real backend data paths.
 - The dashboard price-history section renders real item history when available and falls back to an empty state when no history exists yet.

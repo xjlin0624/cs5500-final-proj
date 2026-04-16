@@ -202,11 +202,11 @@ def test_patch_monitored_retailers():
     client = _make_client(session, user)
 
     resp = client.patch("/api/users/me/preferences", json={
-        "monitored_retailers": ["amazon", "target"],
+        "monitored_retailers": ["nike", "sephora"],
     })
 
     assert resp.status_code == 200
-    assert prefs.monitored_retailers == ["amazon", "target"]
+    assert prefs.monitored_retailers == ["nike", "sephora"]
 
 
 def test_patch_creates_defaults_if_no_prefs_exist():
