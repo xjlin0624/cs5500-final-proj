@@ -6,13 +6,61 @@ from sqlalchemy import select
 
 from .deps import CurrentUser, DB
 from ..models.alert import Alert
+from ..models.order import Order
+from ..models.order_item import OrderItem
 from ..models.enums import AlertPriority, AlertStatus, AlertType, MessageTone
 from ..models.user_preferences import UserPreferences
-from ..schemas.alert import AlertRead, AlertUpdate, ExplainedRecommendation, GeneratedMessage
+from ..schemas.alert import (
+    AlertCreate,
+    AlertRead,
+    AlertUpdate,
+    ExplainedRecommendation,
+    GeneratedMessage,
+)
 from ..services.gemini import generate_support_message, static_fallback_for_alert
 from ..tasks.price_monitoring import build_explained_recommendation
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
+
+
+@router.post("", response_model=AlertRead, status_code=status.HTTP_201_CREATED)
+def create_alert(
+    body: AlertCreate,
+    db: DB,
+    current_user: CurrentUser,
+) -> Alert:
+    related_order = None
+    if body.order_id is not None:
+        related_order = db.get(Order, body.order_id)
+        if related_order is None or related_order.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    related_item = None
+    if body.order_item_id is not None:
+        related_item = db.get(OrderItem, body.order_item_id)
+        if related_item is None or related_item.user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order item not found")
+        if related_order is not None and related_item.order_id != related_order.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Order item does not belong to the selected order",
+            )
+
+    alert = Alert(
+        user_id=current_user.id,
+        order_id=related_order.id if related_order is not None else body.order_id,
+        order_item_id=related_item.id if related_item is not None else body.order_item_id,
+        alert_type=body.alert_type,
+        priority=body.priority,
+        status=AlertStatus.new,
+        title=body.title,
+        body=body.body,
+        evidence=body.evidence,
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return alert
 
 
 @router.get("", response_model=list[AlertRead])

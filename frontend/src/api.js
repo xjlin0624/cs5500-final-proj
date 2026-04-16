@@ -101,6 +101,19 @@ export async function getAlerts(statusOrFilters) {
   return handleResponse(res);
 }
 
+export async function createAlert(payload) {
+  const res = await fetch(createApiUrl("alerts"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse(res);
+}
+
 export async function resolveAlert(id) {
   const res = await fetch(createApiUrl(`alerts/${id}/resolve`), {
     method: "PATCH",

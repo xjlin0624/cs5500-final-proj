@@ -45,6 +45,16 @@ class GeneratedMessage(BaseModel):
     fallback: bool = False
 
 
+class AlertCreate(BaseModel):
+    order_id: UUID | None = None
+    order_item_id: UUID | None = None
+    alert_type: AlertType
+    priority: AlertPriority = AlertPriority.medium
+    title: str
+    body: str
+    evidence: dict | None = None
+
+
 class AlertUpdate(BaseModel):
     status: AlertStatus | None = None
     generated_messages: dict | None = None

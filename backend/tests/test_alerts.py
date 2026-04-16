@@ -35,6 +35,7 @@ class FakeAlertsSession:
     def __init__(self, alerts=None, alert_by_id=None):
         self._alerts = alerts or []
         self._alert_by_id = alert_by_id or {}
+        self.added = []
         self.committed = False
 
     def execute(self, _stmt):
@@ -43,11 +44,19 @@ class FakeAlertsSession:
     def get(self, _model, pk):
         return self._alert_by_id.get(str(pk))
 
+    def add(self, value):
+        self.added.append(value)
+
     def commit(self):
         self.committed = True
 
-    def refresh(self, _obj):
-        pass
+    def refresh(self, obj):
+        if not getattr(obj, "id", None):
+            obj.id = uuid4()
+        if not getattr(obj, "created_at", None):
+            obj.created_at = datetime.now(timezone.utc)
+        if not getattr(obj, "updated_at", None):
+            obj.updated_at = datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +106,32 @@ def _make_client(session, user) -> TestClient:
     app.dependency_overrides[get_db] = lambda: (yield session)
     app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# POST /api/alerts
+# ---------------------------------------------------------------------------
+
+def test_create_alert_creates_manual_alert():
+    user = _make_user()
+    session = FakeAlertsSession()
+    client = _make_client(session, user)
+
+    resp = client.post(
+        "/api/alerts",
+        json={
+            "alert_type": "delivery_anomaly",
+            "priority": "medium",
+            "title": "Check carrier update",
+            "body": "Remind me to review the delivery status tomorrow.",
+        },
+    )
+
+    assert resp.status_code == 201
+    assert session.committed is True
+    assert len(session.added) == 1
+    assert session.added[0].user_id == user.id
+    assert session.added[0].title == "Check carrier update"
 
 
 # ---------------------------------------------------------------------------

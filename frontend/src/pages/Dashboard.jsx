@@ -274,7 +274,7 @@ export default function Dashboard() {
                   <div className="smart-alert-body">
                     <div className="smart-alert-title">{alert.title}</div>
                     <div className="smart-alert-desc">{alert.body}</div>
-                    <Link className="secondary-btn full-width-btn" to="/alerts">
+                    <Link className="secondary-btn full-width-btn" to="/alerts?tab=active">
                       Open Alerts
                     </Link>
                   </div>

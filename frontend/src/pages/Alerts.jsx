@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import {
+  createAlert,
   dismissAlert,
   getAlertMessage,
   getAlertRecommendation,
   getAlerts,
+  getOrders,
   logOutcome,
   resolveAlert,
 } from "../api";
@@ -13,6 +15,11 @@ import {
 function normalizeAlerts(data) {
   if (Array.isArray(data)) return data;
   return data.alerts || data.results || data.data || data.value || [];
+}
+
+function normalizeOrders(data) {
+  if (Array.isArray(data)) return data;
+  return data.orders || data.results || data.data || [];
 }
 
 function formatCurrency(value) {
@@ -62,6 +69,14 @@ function formatEvidence(alert) {
     .join(" | ");
 }
 
+function formatOrderOption(order) {
+  const firstItem =
+    Array.isArray(order.items) && order.items.length > 0 ? order.items[0] : null;
+  return `${order.retailer_order_id || order.id} | ${order.retailer || "Unknown"} | ${
+    firstItem?.product_name || "Order"
+  }`;
+}
+
 function mapRecommendedActionToOutcome(action) {
   if (action === "price_match") return "price_matched";
   if (action === "return_and_rebuy") return "returned_and_rebought";
@@ -73,15 +88,39 @@ function isActiveAlert(alert) {
   return status !== "dismissed" && status !== "resolved";
 }
 
+const defaultCreateForm = {
+  order_id: "",
+  alert_type: "price_drop",
+  priority: "medium",
+  title: "",
+  body: "",
+};
+
+const inputLikeStyle = {
+  minHeight: "48px",
+  borderRadius: "10px",
+  border: "none",
+  background: "#f3f3f3",
+  padding: "12px 14px",
+  outline: "none",
+  width: "100%",
+};
+
 export default function Alerts() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [alerts, setAlerts] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [busyId, setBusyId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
-  const [activeTab, setActiveTab] = useState("active");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState(defaultCreateForm);
   const [recommendations, setRecommendations] = useState({});
   const [messages, setMessages] = useState({});
+
+  const activeTab = searchParams.get("tab") === "history" ? "history" : "active";
 
   async function loadAlerts() {
     try {
@@ -99,6 +138,75 @@ export default function Alerts() {
   useEffect(() => {
     loadAlerts();
   }, []);
+
+  async function ensureOrdersLoaded() {
+    if (orders.length > 0) return;
+
+    try {
+      setLoadingOrders(true);
+      const data = await getOrders();
+      setOrders(normalizeOrders(data));
+    } catch (error) {
+      setErrorMsg(error.message || "Failed to load orders for alert creation");
+    } finally {
+      setLoadingOrders(false);
+    }
+  }
+
+  async function handleToggleCreateForm() {
+    setStatusMsg("");
+    setErrorMsg("");
+
+    if (!showCreateForm) {
+      await ensureOrdersLoaded();
+    }
+    setShowCreateForm((current) => !current);
+  }
+
+  function handleTabChange(nextTab) {
+    const next = new window.URLSearchParams(searchParams);
+    if (nextTab === "history") {
+      next.set("tab", "history");
+    } else {
+      next.delete("tab");
+    }
+    setSearchParams(next, { replace: true });
+  }
+
+  function updateCreateForm(field, value) {
+    setCreateForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleCreateAlert(event) {
+    event.preventDefault();
+
+    try {
+      setBusyId("create-alert");
+      setStatusMsg("");
+      setErrorMsg("");
+
+      await createAlert({
+        order_id: createForm.order_id || null,
+        alert_type: createForm.alert_type,
+        priority: createForm.priority,
+        title: createForm.title.trim(),
+        body: createForm.body.trim(),
+      });
+
+      setCreateForm(defaultCreateForm);
+      setShowCreateForm(false);
+      handleTabChange("active");
+      await loadAlerts();
+      setStatusMsg("Alert created successfully.");
+    } catch (error) {
+      setErrorMsg(error.message || "Failed to create alert");
+    } finally {
+      setBusyId("");
+    }
+  }
 
   async function handleResolve(id) {
     try {
@@ -198,28 +306,141 @@ export default function Alerts() {
 
       <div className="page-helper-row">
         <div className="page-helper-text">
-          Review price drops and delivery issues, then generate a message or log the result.
+          Review price drops and delivery issues, then generate a message, log the result, or add a manual alert.
         </div>
-        <Link className="primary-btn" to="/savings">
-          View Savings History
-        </Link>
+        <button className="primary-btn" type="button" onClick={handleToggleCreateForm}>
+          {showCreateForm ? "Close Alert Form" : "Create New Alert"}
+        </button>
       </div>
+
+      {showCreateForm ? (
+        <div className="settings-card" style={{ margin: "0 0 22px 0", maxWidth: "100%" }}>
+          <div className="section-card-title">Create Alert</div>
+          <div className="section-card-subtitle" style={{ marginBottom: "16px" }}>
+            Create a manual alert tied to an order, or leave the order blank for a general reminder.
+          </div>
+
+          <form onSubmit={handleCreateAlert}>
+            <div className="settings-grid two-col">
+              <div className="form-group">
+                <label>Related Order (Optional)</label>
+                <select
+                  value={createForm.order_id}
+                  onChange={(event) => updateCreateForm("order_id", event.target.value)}
+                  style={inputLikeStyle}
+                  disabled={loadingOrders || busyId === "create-alert"}
+                >
+                  <option value="">No related order</option>
+                  {orders.map((order) => (
+                    <option key={order.id} value={order.id}>
+                      {formatOrderOption(order)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Alert Type</label>
+                <select
+                  value={createForm.alert_type}
+                  onChange={(event) => updateCreateForm("alert_type", event.target.value)}
+                  style={inputLikeStyle}
+                  disabled={busyId === "create-alert"}
+                >
+                  <option value="price_drop">Price Drop</option>
+                  <option value="delivery_anomaly">Delivery Anomaly</option>
+                  <option value="return_window_expiring">Return Window Expiring</option>
+                  <option value="alternative_product">Alternative Product</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="settings-grid two-col" style={{ marginTop: "16px" }}>
+              <div className="form-group">
+                <label>Priority</label>
+                <select
+                  value={createForm.priority}
+                  onChange={(event) => updateCreateForm("priority", event.target.value)}
+                  style={inputLikeStyle}
+                  disabled={busyId === "create-alert"}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Title</label>
+                <input
+                  value={createForm.title}
+                  onChange={(event) => updateCreateForm("title", event.target.value)}
+                  placeholder="Short alert title"
+                  required
+                  disabled={busyId === "create-alert"}
+                />
+              </div>
+            </div>
+
+            <div className="settings-grid one-col" style={{ marginTop: "16px" }}>
+              <div className="form-group">
+                <label>Details</label>
+                <textarea
+                  value={createForm.body}
+                  onChange={(event) => updateCreateForm("body", event.target.value)}
+                  placeholder="Describe what the alert should remind you to do."
+                  required
+                  rows={4}
+                  style={{ ...inputLikeStyle, resize: "vertical" }}
+                  disabled={busyId === "create-alert"}
+                />
+              </div>
+            </div>
+
+            <div className="settings-actions" style={{ marginTop: "16px" }}>
+              <button
+                className="secondary-btn"
+                type="button"
+                onClick={() => {
+                  setCreateForm(defaultCreateForm);
+                  setShowCreateForm(false);
+                }}
+                disabled={busyId === "create-alert"}
+              >
+                Cancel
+              </button>
+              <button className="primary-btn" type="submit" disabled={busyId === "create-alert"}>
+                {busyId === "create-alert" ? "Creating..." : "Create Alert"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <div className="pill-tabs">
         <button
           className={`pill-tab ${activeTab === "active" ? "active" : ""}`}
           type="button"
-          onClick={() => setActiveTab("active")}
+          onClick={() => handleTabChange("active")}
         >
           Active Alerts
         </button>
         <button
           className={`pill-tab ${activeTab === "history" ? "active" : ""}`}
           type="button"
-          onClick={() => setActiveTab("history")}
+          onClick={() => handleTabChange("history")}
         >
           Alert History
         </button>
+      </div>
+
+      <div className="page-helper-row" style={{ marginTop: "-8px" }}>
+        <div className="page-helper-text">
+          Use recommendation and message actions on price-drop alerts, then log the result to update Savings.
+        </div>
+        <Link className="plain-link-btn" to="/savings">
+          View Savings History
+        </Link>
       </div>
 
       <div className="three-col-grid alerts-grid">
