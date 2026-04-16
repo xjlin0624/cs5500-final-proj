@@ -13,6 +13,7 @@
     "https://www.nike.com/*",
     "https://www.sephora.com/*",
     "https://www.target.com/*"
+    "http://localhost:8000/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
