@@ -1,11 +1,9 @@
-from .amazon import AmazonAdapter
 from .base import RetailerAdapter
 from .nike import NikeAdapter
 from .sephora import SephoraAdapter
 
 
 RETAILER_ADAPTERS: dict[str, RetailerAdapter] = {
-    "amazon": AmazonAdapter(),
     "nike": NikeAdapter(),
     "sephora": SephoraAdapter(),
 }
