@@ -24,10 +24,6 @@ class Settings(BaseSettings):
     celery_result_backend: str | None = Field(default=None, alias="CELERY_RESULT_BACKEND")
     price_check_batch_size: int = Field(default=100, alias="PRICE_CHECK_BATCH_SIZE")
     price_check_interval_minutes: int = Field(default=15, alias="PRICE_CHECK_INTERVAL_MINUTES")
-    subscription_refresh_interval_minutes: int = Field(
-        default=360,
-        alias="SUBSCRIPTION_REFRESH_INTERVAL_MINUTES",
-    )
     delivery_check_interval_minutes: int = Field(
         default=60,
         alias="DELIVERY_CHECK_INTERVAL_MINUTES",

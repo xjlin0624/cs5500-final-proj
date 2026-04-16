@@ -125,16 +125,3 @@ def test_unregister_push_token_marks_token_inactive():
     assert response.status_code == 204
     assert token.is_active is False
     assert session.committed is True
-
-
-def test_cancellation_guidance_endpoint_returns_retailer_entry():
-    user = _make_user()
-    session = FakePushSession()
-    client = _make_client(session, user)
-
-    response = client.get("/api/subscriptions/cancellation-guidance/nike")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["retailer"] == "nike"
-    assert len(data["steps"]) >= 1

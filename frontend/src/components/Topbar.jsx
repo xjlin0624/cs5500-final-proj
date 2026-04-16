@@ -8,7 +8,6 @@ function getPageTitle(pathname) {
   if (pathname === "/orders") return "My Orders";
   if (pathname === "/alerts") return "Price Alerts";
   if (pathname === "/savings") return "Savings Tool";
-  if (pathname === "/subscriptions") return "Subscriptions";
   if (pathname === "/settings") return "Settings";
   return "Overview";
 }

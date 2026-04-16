@@ -6,7 +6,6 @@ import {
   getOrders,
   getPriceHistory,
   getSavingsSummary,
-  getSubscriptions,
 } from "../api";
 import PriceLineChart from "../components/PriceLineChart";
 import StatCard from "../components/StatCard";
@@ -19,11 +18,6 @@ function normalizeOrders(data) {
 function normalizeAlerts(data) {
   if (Array.isArray(data)) return data;
   return data.alerts || data.results || data.data || [];
-}
-
-function normalizeSubscriptions(data) {
-  if (Array.isArray(data)) return data;
-  return data.subscriptions || data.results || data.data || [];
 }
 
 function formatMoney(value) {
@@ -90,7 +84,6 @@ export default function Dashboard() {
   const [orders, setOrders] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [savings, setSavings] = useState(null);
-  const [subscriptions, setSubscriptions] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [featuredItemName, setFeaturedItemName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -102,19 +95,16 @@ export default function Dashboard() {
         setLoading(true);
         setErrorMsg("");
 
-        const [ordersRes, alertsRes, savingsRes, subscriptionsRes] = await Promise.all([
+        const [ordersRes, alertsRes, savingsRes] = await Promise.all([
           getOrders(),
           getAlerts(),
           getSavingsSummary(),
-          getSubscriptions(),
         ]);
 
         const nextOrders = normalizeOrders(ordersRes);
         setOrders(nextOrders);
         setAlerts(normalizeAlerts(alertsRes));
         setSavings(savingsRes);
-        setSubscriptions(normalizeSubscriptions(subscriptionsRes));
-
         const featuredItem = pickFeaturedItem(nextOrders);
         if (featuredItem?.id) {
           try {
@@ -148,21 +138,9 @@ export default function Dashboard() {
     [alerts]
   );
 
-  const upcomingSubscription = useMemo(() => {
-    return subscriptions
-      .filter((subscription) => subscription.next_expected_charge)
-      .sort(
-        (a, b) =>
-          new Date(a.next_expected_charge).getTime() -
-          new Date(b.next_expected_charge).getTime()
-      )[0];
-  }, [subscriptions]);
-
   const stats = useMemo(() => {
     const totalRecovered = savings?.total_recovered || 0;
     const successfulActions = savings?.successful_actions || 0;
-    const monitoredSubscriptions = subscriptions.length;
-
     return [
       {
         title: "Recovered Savings",
@@ -183,15 +161,13 @@ export default function Dashboard() {
         positive: activeAlerts.length === 0,
       },
       {
-        title: "Monitored Subscriptions",
-        value: String(monitoredSubscriptions),
-        trend: upcomingSubscription?.next_expected_charge
-          ? `Next charge ${formatDate(upcomingSubscription.next_expected_charge)}`
-          : "No upcoming recurring charges",
-        positive: monitoredSubscriptions > 0,
+        title: "Orders Tracked",
+        value: String(orders.length),
+        trend: orders.length > 0 ? "Across Nike and Sephora" : "No orders captured yet",
+        positive: orders.length > 0,
       },
     ];
-  }, [activeAlerts.length, savings, subscriptions, upcomingSubscription]);
+  }, [activeAlerts.length, orders.length, savings]);
 
   const recentPurchases = useMemo(() => {
     return orders.slice(0, 5).map(mapRecentPurchase);
@@ -323,47 +299,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="table-card">
-          <div className="table-card-header">
-            <div>
-              <div className="section-card-title">Subscription Summary</div>
-              <div className="section-card-subtitle">
-                Track recurring charges and cancellation guidance in one place.
-              </div>
-            </div>
-            <Link className="plain-link-btn" to="/subscriptions">
-              View Subscriptions
-            </Link>
-          </div>
-
-          {subscriptions.length === 0 ? (
-            <p style={{ color: "#6b7280", margin: 0 }}>
-              No recurring subscriptions have been detected yet.
-            </p>
-          ) : (
-            <>
-              <div className="summary-row">
-                <span>Detected subscriptions</span>
-                <strong>{subscriptions.length}</strong>
-              </div>
-              <div className="summary-row">
-                <span>Upcoming charge</span>
-                <strong>
-                  {upcomingSubscription?.next_expected_charge
-                    ? formatDate(upcomingSubscription.next_expected_charge)
-                    : "Not available"}
-                </strong>
-              </div>
-              <div className="summary-divider"></div>
-              {subscriptions.slice(0, 3).map((subscription) => (
-                <div className="summary-row" key={subscription.id}>
-                  <span>{subscription.product_name}</span>
-                  <strong>{subscription.retailer}</strong>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
       </section>
 
       <section className="section-block">

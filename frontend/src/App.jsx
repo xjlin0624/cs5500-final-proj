@@ -6,7 +6,6 @@ import Dashboard from "./pages/Dashboard";
 import Orders from "./pages/Orders";
 import Alerts from "./pages/Alerts";
 import Savings from "./pages/Savings";
-import Subscriptions from "./pages/Subscriptions";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import { logout } from "./api";
@@ -44,7 +43,6 @@ export default function App() {
               <Route path="/orders" element={<Orders />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/savings" element={<Savings />} />
-              <Route path="/subscriptions" element={<Subscriptions />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>

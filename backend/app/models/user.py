@@ -20,6 +20,5 @@ class User(Base):
     preferences   = relationship("UserPreferences", back_populates="user", uselist=False, cascade="all, delete-orphan")
     orders        = relationship("Order", back_populates="user", cascade="all, delete-orphan")
     alerts        = relationship("Alert", back_populates="user", cascade="all, delete-orphan")
-    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     outcome_logs  = relationship("OutcomeLog", back_populates="user", cascade="all, delete-orphan")
     push_tokens   = relationship("PushDeviceToken", back_populates="user", cascade="all, delete-orphan")

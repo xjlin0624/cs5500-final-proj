@@ -6,7 +6,6 @@ const items = [
   { label: "My Orders", path: "/orders", icon: "🛒" },
   { label: "Price Alerts", path: "/alerts", icon: "🔔" },
   { label: "Savings Tool", path: "/savings", icon: "〰" },
-  { label: "Subscriptions", path: "/subscriptions", icon: "▭" },
   { label: "Settings", path: "/settings", icon: "⚙" },
 ];
 

@@ -13,7 +13,6 @@ from .api.preferences import router as preferences_router
 from .api.prices import router as prices_router
 from .api.push import router as push_router
 from .api.savings import router as savings_router
-from .api.subscriptions import router as subscriptions_router
 from .api.users import router as users_router
 from .core.observability import init_sentry
 from .core.settings import get_settings
@@ -53,4 +52,3 @@ app.include_router(outcomes_router, prefix="/api")
 app.include_router(savings_router, prefix="/api")
 app.include_router(messages_router, prefix="/api")
 app.include_router(push_router, prefix="/api")
-app.include_router(subscriptions_router, prefix="/api")

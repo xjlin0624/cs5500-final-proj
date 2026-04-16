@@ -21,7 +21,6 @@ celery_app.conf.update(
     enable_utc=True,
     imports=(
         "backend.app.tasks.price_monitoring",
-        "backend.app.tasks.subscriptions",
         "backend.app.tasks.delivery_monitoring",
         "backend.app.tasks.notifications",
     ),
@@ -29,10 +28,6 @@ celery_app.conf.update(
         "price-check-cycle": {
             "task": "price_check_cycle",
             "schedule": timedelta(minutes=settings.price_check_interval_minutes),
-        },
-        "subscription-flag-refresh-cycle": {
-            "task": "subscription_flag_refresh_cycle",
-            "schedule": timedelta(minutes=settings.subscription_refresh_interval_minutes),
         },
         "delivery-check-cycle": {
             "task": "delivery_check_cycle",

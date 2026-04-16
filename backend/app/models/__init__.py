@@ -5,14 +5,12 @@ from .enums import (
     AlertStatus,
     AlertType,
     DeliveryEventType,
-    DetectionMethod,
     EffortLevel,
     MessageTone,
     MonitoringStoppedReason,
     OrderStatus,
     RecommendedAction,
     SnapshotSource,
-    SubscriptionStatus,
 )
 from .user import User
 from .user_preferences import UserPreferences
@@ -21,7 +19,6 @@ from .order_item import OrderItem
 from .price_snapshot import PriceSnapshot
 from .alert import Alert
 from .delivery_event import DeliveryEvent
-from .subscription import Subscription
 from .outcome_log import OutcomeLog
 from .push_device_token import PushDeviceToken
 
@@ -34,7 +31,6 @@ __all__ = [
     "Base",
     "DeliveryEvent",
     "DeliveryEventType",
-    "DetectionMethod",
     "EffortLevel",
     "MessageTone",
     "MonitoringStoppedReason",
@@ -46,8 +42,6 @@ __all__ = [
     "PushDeviceToken",
     "RecommendedAction",
     "SnapshotSource",
-    "Subscription",
-    "SubscriptionStatus",
     "User",
     "UserPreferences",
 ]

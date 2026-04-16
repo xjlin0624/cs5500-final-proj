@@ -243,12 +243,6 @@ export async function getSavingsSummary(limit) {
   return handleResponse(res);
 }
 
-export async function getSubscriptions() {
-  const res = await apiFetch(createApiUrl("subscriptions"), {
-    headers: { ...authHeaders() },
-  });
-  return handleResponse(res);
-}
 
 export async function getPriceHistory(itemId, limit) {
   const res = await apiFetch(createApiUrl(`prices/${itemId}/history`, limit ? { limit } : {}), {

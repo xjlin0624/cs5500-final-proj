@@ -69,17 +69,6 @@ class DeliveryEventType(str, enum.Enum):
     delivered = "delivered"
 
 
-class SubscriptionStatus(str, enum.Enum):
-    active = "active"
-    handled = "handled"
-    cancelled = "cancelled"
-    monitoring = "monitoring"
-
-
-class DetectionMethod(str, enum.Enum):
-    order_pattern = "order_pattern"
-    explicit_subscription_page = "explicit_subscription_page"
-
 
 class ActionTaken(str, enum.Enum):
     price_matched = "price_matched"
