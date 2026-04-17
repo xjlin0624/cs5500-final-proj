@@ -5,68 +5,77 @@ class SephoraExtractor extends BaseExtractor {
 
   extractOrders() {
     const orders = [];
-    // Sephora order history cards
-    const orderCards = document.querySelectorAll(
-      "[data-at='order_card'], [data-comp='OrderCard'], .order-history-card"
-    );
 
+    // Order detail page: extract total, status, and items
+    const detailTotalEl = document.querySelector("[data-at='orderdetail_order_total']");
+    if (detailTotalEl) {
+      const orderId = window.location.pathname.match(/\/orderdetail\/(\w+)/)?.[1];
+      if (orderId) {
+        const totalText = detailTotalEl.textContent.trim();
+        const total = parseFloat(totalText.replace(/[^0-9.]/g, "")) || 0;
+        const orderDate = document.querySelector("[data-at='order_date']")?.textContent?.trim() || "";
+        const orderStatus = document.querySelector("[data-at='order_status']")?.textContent?.trim() || "";
+
+        const brands = [...document.querySelectorAll("[data-at='sku_item_brand']")];
+        const names = [...document.querySelectorAll("[data-at='sku_item_name']")];
+        const prices = [...document.querySelectorAll("[data-at='sku_item_price_list']")];
+        const skus = [...document.querySelectorAll("[data-at='sku_size']")];
+
+        const items = brands.map((brandEl, i) => {
+          const brand = brandEl?.textContent?.trim() || "";
+          const name = names[i]?.textContent?.trim() || "";
+          const priceText = prices[i]?.textContent?.trim() || "";
+          const paidPrice = parseFloat(priceText.replace(/[^0-9.]/g, "")) || null;
+          const skuText = skus[i]?.textContent?.trim() || "";
+          const skuId = skuText.match(/ITEM\s+(\d+)/)?.[1] || null;
+          return {
+            name: brand ? `${brand} ${name}` : name,
+            productId: skuId,
+            productUrl: null,
+            imageUrl: null,
+            paidPrice,
+          };
+        }).filter(item => item.name);
+
+        orders.push({
+          externalOrderId: orderId,
+          orderDate,
+          orderUrl: window.location.href,
+          orderStatus,
+          total,
+          currency: "USD",
+          items,
+        });
+      }
+      return orders;
+    }
+
+    // Order history list page
+    const orderCards = document.querySelectorAll("[data-at='item_row']");
     for (const card of orderCards) {
       try {
         const orderId = card.querySelector(
-          "[data-at='order_number'], .order-number"
-        )?.textContent?.trim()?.replace(/^Order\s*#?\s*/i, "");
+          "[data-at='order_number']"
+        )?.textContent?.trim();
 
-        const totalEl = card.querySelector(
-          "[data-at='order_total'], .order-total"
-        );
-        const totalText = totalEl?.textContent?.trim() || "";
-        const total = parseFloat(totalText.replace(/[^0-9.]/g, "")) || 0;
-
-        const dateEl = card.querySelector(
-          "[data-at='order_date'], .order-date"
-        );
+        const dateEl = card.querySelector("[data-at='order_date']");
         const orderDate = dateEl?.textContent?.trim() || "";
 
-        const items = [];
-        const itemEls = card.querySelectorAll(
-          "[data-at='order_product'], .order-product, .product-info"
-        );
-        for (const itemEl of itemEls) {
-          const name = itemEl.querySelector(
-            "[data-at='product_name'], .product-name, a[href*='/product/']"
-          )?.textContent?.trim();
-
-          // Sephora SKU IDs appear in product URLs: /product/{slug}-P{skuId}
-          const productLink = itemEl.querySelector("a[href*='/product/']");
-          const skuId = productLink?.href?.match(/-P(\d+)/)?.[1];
-          const imgUrl = itemEl.querySelector("img")?.src;
-
-          if (name) {
-            items.push({
-              name,
-              productId: skuId || null,
-              productUrl: productLink?.href || null,
-              imageUrl: imgUrl || null,
-            });
-          }
-        }
-
-        // Order detail URL — used by backend for delivery status polling
-        const orderLink = card.querySelector(
-          "a[href*='/orders/'], a[href*='/order/'], a[href*='/OrderDetail']"
-        );
-        const orderUrl = orderLink
-          ? new URL(orderLink.href, window.location.origin).toString()
+        const orderUrl = orderId
+          ? `https://www.sephora.com/profile/orderdetail/${orderId}`
           : null;
+
+        const orderStatus = card.querySelector("[data-at='order_status']")?.textContent?.trim() || "";
 
         if (orderId) {
           orders.push({
             externalOrderId: orderId,
             orderDate,
             orderUrl,
-            total,
+            orderStatus,
+            total: 0,
             currency: "USD",
-            items,
+            items: [],
           });
         }
       } catch (e) {
@@ -112,6 +121,25 @@ class SephoraExtractor extends BaseExtractor {
   }
 }
 
-// Auto-run on page load
+// Wait for Sephora's SPA to render order rows before extracting
 const sephoraExtractor = new SephoraExtractor();
-sephoraExtractor.run();
+
+function runWhenReady() {
+  const isReady = () =>
+    document.querySelector("[data-at='item_row']") ||
+    document.querySelector("[data-at='orderdetail_order_total']");
+
+  if (isReady()) {
+    sephoraExtractor.run();
+    return;
+  }
+  const observer = new MutationObserver(() => {
+    if (isReady()) {
+      observer.disconnect();
+      sephoraExtractor.run();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+runWhenReady();
